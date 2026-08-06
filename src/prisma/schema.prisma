@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String                 @id @default(uuid()) @db.Uuid
+  email             String                 @unique @db.VarChar(255)
+  phone             String                 @unique @db.VarChar(20)
+  passwordHash      String                 @map("password_hash") @db.VarChar(255)
+  firstName         String?                @map("first_name") @db.VarChar(100)
+  lastName          String?                @map("last_name") @db.VarChar(100)
+  isVerified        Boolean                @default(false) @map("is_verified")
+  isActive          Boolean                @default(true) @map("is_active")
+  lastLogin         DateTime?              @map("last_login") @db.Timestamptz(6)
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  financialProfile  UserFinancialProfile?
+  goals             Goal[]
+  contributions     Contribution[]
+  manualTxns        ManualTransaction[]    @map("manual_transactions")
+  notificationLogs  NotificationLog[]
+  settings          UserSettings?
+
+  @@map("users")
+}
+
+model UserFinancialProfile {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @unique @map("user_id") @db.Uuid
+  incomeAmount        Decimal? @map("income_amount") @db.Decimal(12, 2)
+  incomeFrequency     String?  @map("income_frequency") @db.VarChar(20)
+  fixedExpenses       Json?    @map("fixed_expenses")
+  variableExpenses    Json?    @map("variable_expenses")
+  existingSavings     Decimal? @default(0) @map("existing_savings") @db.Decimal(12, 2)
+  existingCommitments Json?    @map("existing_commitments")
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_financial_profiles")
+}
+
+model GoalCategory {
+  id          Int    @id @default(autoincrement())
+  name        String @unique @db.VarChar(50)
+  description String?
+
+  goals Goal[]
+
+  @@map("goal_categories")
+}
+
+model Goal {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  categoryId            Int?     @map("category_id")
+  goalName              String   @map("goal_name") @db.VarChar(255)
+  targetAmount          Decimal  @map("target_amount") @db.Decimal(12, 2)
+  currentAmount         Decimal  @default(0) @map("current_amount") @db.Decimal(12, 2)
+  deadline              DateTime @db.Date
+  contributionFrequency String   @map("contribution_frequency") @db.VarChar(20)
+  preferredContribution Decimal? @map("preferred_contribution") @db.Decimal(12, 2)
+  requiredContribution  Decimal? @map("required_contribution") @db.Decimal(12, 2)
+  status                String   @default("active") @db.VarChar(20)
+  description           String?
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User                   @relation(fields: [userId], references: [id])
+  category      GoalCategory?          @relation(fields: [categoryId], references: [id])
+  contributions Contribution[]
+  adjustments   GoalAdjustmentHistory[]
+
+  @@index([userId, status])
+  @@index([deadline])
+  @@map("goals")
+}
+
+model Contribution {
+  id                String   @id @default(uuid()) @db.Uuid
+  goalId            String   @map("goal_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  contributionDate  DateTime @map("contribution_date") @db.Date
+  sourceType        String   @map("source_type") @db.VarChar(20)
+  externalReference String?  @map("external_reference") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  goal Goal @relation(fields: [goalId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([goalId])
+  @@index([contributionDate])
+  @@map("contributions")
+}
+
+model ManualTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  type            String   @db.VarChar(20)
+  category        String   @db.VarChar(100)
+  amount          Decimal  @db.Decimal(12, 2)
+  transactionDate DateTime @map("transaction_date") @db.Date
+  description     String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, transactionDate])
+  @@map("manual_transactions")
+}
+
+model GoalAdjustmentHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  goalId       String   @map("goal_id") @db.Uuid
+  changedField String   @map("changed_field") @db.VarChar(50)
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  changeReason String?  @map("change_reason")
+  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  goal Goal @relation(fields: [goalId], references: [id])
+
+  @@map("goal_adjustment_history")
+}
+
+model NotificationLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar(20)
+  subject   String?  @db.VarChar(255)
+  body      String?
+  sentAt    DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+  status    String   @default("sent") @db.VarChar(20)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, sentAt])
+  @@map("notification_logs")
+}
+
+model UserSettings {
+  userId             String   @id @map("user_id") @db.Uuid
+  emailNotifications Boolean  @default(true) @map("email_notifications")
+  pushNotifications  Boolean  @default(true) @map("push_notifications")
+  smsNotifications   Boolean  @default(false) @map("sms_notifications")
+  reminderFrequency  String   @default("weekly") @map("reminder_frequency") @db.VarChar(20)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_settings")
+}
