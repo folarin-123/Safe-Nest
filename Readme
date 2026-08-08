@@ -1,0 +1,16 @@
+Develop registration and login APIs.
+
+Registration (POST /auth/register) — validates input, checks for duplicate email/phone, hashes password with bcrypt, creates user, returns JWT
+Login (POST /auth/login) — validates input, checks credentials, blocks deactivated accounts, returns JWT, records last login
+Protected route (GET /auth/me) — verifies JWT via Passport strategy, returns current user
+Password hashing, JWT generation, input validation, error handling, controller/service separation, Prisma integration, env vars — all in place, all confirmed against your partner's actual schema and existing files
+
+
+Fully built (savings plan feature):
+
+Create a goal - auto-calculates required contribution per period
+List all your goals
+View one goal in detail - includes contribution history + progress percentage
+Record a contribution - updates currentAmount, recalculates plan, auto-completes goal if target hit
+List contributions for a goal
+Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
