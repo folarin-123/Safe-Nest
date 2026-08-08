@@ -1,3 +1,1 @@
-// Auto-generated placeholder
-export {}
 
