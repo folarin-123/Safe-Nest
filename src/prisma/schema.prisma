@@ -23,7 +23,7 @@ model User {
   financialProfile  UserFinancialProfile?
   goals             Goal[]
   contributions     Contribution[]
-  manualTxns        ManualTransaction[]    @map("manual_transactions")
+  manualTxns        ManualTransaction[]   
   notificationLogs  NotificationLog[]
   settings          UserSettings?
 

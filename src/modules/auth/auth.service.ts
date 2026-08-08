@@ -1,10 +1,16 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResult, SafeUser } from './auth.types';
+
+const SALT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
@@ -13,58 +19,77 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  private sanitizeUser(user: any) {
-    const { passwordHash, ...safeUser } = user;
-    return safeUser;
-  }
-
-  async register(registerDto: RegisterAuthDto): Promise<AuthResponseDto> {
-    const emailExists = await this.usersService.findByEmail(registerDto.email);
-    if (emailExists) {
-      throw new ConflictException('Email is already registered');
-    }
-
-    const phoneExists = await this.usersService.findByPhone(registerDto.phone);
-    if (phoneExists) {
-      throw new ConflictException('Phone number is already registered');
-    }
-
-    const passwordHash = await bcrypt.hash(registerDto.password, 12);
-    const user = await this.usersService.createUser({
-      email: registerDto.email,
-      phone: registerDto.phone,
-      passwordHash,
-      firstName: registerDto.firstName,
-      lastName: registerDto.lastName,
-    });
-
-    const accessToken = this.signToken(user.id, user.email);
+  private toSafeUser(user: {
+    id: string;
+    email: string;
+    phone: string;
+    firstName: string | null;
+    lastName: string | null;
+    createdAt: Date;
+  }): SafeUser {
     return {
-      accessToken,
-      user: this.sanitizeUser(user),
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      createdAt: user.createdAt,
     };
   }
 
-  async login(loginDto: LoginAuthDto): Promise<AuthResponseDto> {
-    const user = await this.usersService.findByEmail(loginDto.email);
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+  async register(dto: RegisterAuthDto): Promise<AuthResult> {
+    const existingByEmail = await this.usersService.findByEmail(dto.email);
+    if (existingByEmail) {
+      throw new ConflictException('An account with this email already exists');
     }
 
-    const passwordMatches = await bcrypt.compare(loginDto.password, user.passwordHash);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid credentials');
+    const existingByPhone = await this.usersService.findByPhone(dto.phone);
+    if (existingByPhone) {
+      throw new ConflictException('An account with this phone number already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+
+    const user = await this.usersService.createUser({
+      email: dto.email,
+      phone: dto.phone,
+      passwordHash,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+    });
+
+    const token = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+    });
+
+    return { user: this.toSafeUser(user), token };
+  }
+
+  async login(dto: LoginAuthDto): Promise<AuthResult> {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('This account has been deactivated');
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     await this.usersService.markLastLogin(user.id);
-    const accessToken = this.signToken(user.id, user.email);
-    return {
-      accessToken,
-      user: this.sanitizeUser(user),
-    };
-  }
 
-  private signToken(userId: string, email: string) {
-    return this.jwtService.sign({ sub: userId, email });
+    const token = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+    });
+
+    return { user: this.toSafeUser(user), token };
   }
 }
