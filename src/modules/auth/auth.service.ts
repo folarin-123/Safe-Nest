@@ -2,11 +2,14 @@ import {
   BadRequestException,
   Injectable,
   ConflictException,
+  InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+import { EmailService } from '../../common/email/email.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { AuthResult, SafeUser } from './auth.types';
@@ -15,9 +18,12 @@ const SALT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   private toSafeUser(user: {
@@ -60,12 +66,25 @@ export class AuthService {
       fullName: dto.fullName,
     });
 
+    void this.sendWelcomeEmail(user.email, user.fullName).catch((error) => {
+      this.logger.warn('Welcome email could not be sent', error as Error);
+    });
+
     const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
     });
 
     return { user: this.toSafeUser(user), accessToken };
+  }
+
+  private async sendWelcomeEmail(email: string, fullName: string) {
+    return this.emailService.sendMail({
+      to: email,
+      subject: 'Welcome to SafeNest',
+      text: `Hi ${fullName},\n\nThanks for registering with SafeNest. Your account is now active and ready to use.\n\nIf you need support, reply to this email or visit our support page.\n\nBest regards,\nThe SafeNest team`,
+      html: `<p>Hi ${fullName},</p><p>Thanks for registering with <strong>SafeNest</strong>. Your account is now active and ready to use.</p><p>If you need support, reply to this email or visit our support page.</p><p>Best regards,<br/>The SafeNest team</p>`,
+    });
   }
 
   async login(dto: LoginAuthDto): Promise<AuthResult> {
