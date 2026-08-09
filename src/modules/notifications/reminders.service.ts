@@ -58,7 +58,7 @@ export class RemindersService {
     id: string;
     firstName: string | null;
     goals: { goalName: string; requiredContribution: any }[];
-    settings: { theme?: string } | null;
+    settings: { id: string; userId: string; theme: string | null } | null;
   }): Promise<boolean> {
     const frequency = 'weekly';
     const frequencyDays = FREQUENCY_DAYS[frequency];

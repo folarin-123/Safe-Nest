@@ -8,19 +8,7 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async send(userId: string, type: string, subject: string, body: string) {
-    const settings = await this.prisma.userSettings.findUnique({
-      where: { userId },
-    });
-
-    const emailEnabled = settings?.emailNotifications ?? true;
-    const pushEnabled = settings?.pushNotifications ?? true;
-
-    if (!emailEnabled && !pushEnabled) {
-      this.logger.log(`Skipped notification for user ${userId} — notifications disabled`);
-      return null;
-    }
-
-    // Placeholder delivery — logs for now. Swap this for a real provider when you're ready.
+    // Placeholder delivery — logs for now. Replace this with a real provider when ready.
     this.logger.log(`Notification to user ${userId}: [${type}] ${subject}`);
 
     const message = subject ? `${subject}\n\n${body}` : body;
