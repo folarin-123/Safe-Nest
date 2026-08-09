@@ -5,8 +5,7 @@ const safeUserSelect = {
   id: true,
   email: true,
   phone: true,
-  firstName: true,
-  lastName: true,
+  fullName: true,
   isActive: true,
   isVerified: true,
   createdAt: true,
@@ -41,8 +40,7 @@ export class UsersService {
     email: string;
     phone: string;
     passwordHash: string;
-    firstName?: string;
-    lastName?: string;
+    fullName: string;
   }) {
     try {
       return await this.prisma.user.create({
@@ -50,8 +48,7 @@ export class UsersService {
           email: data.email,
           phone: data.phone,
           passwordHash: data.passwordHash,
-          firstName: data.firstName,
-          lastName: data.lastName,
+          fullName: data.fullName,
         },
         select: safeUserSelect,
       });
@@ -61,13 +58,12 @@ export class UsersService {
     }
   }
 
-  async updateUser(id: string, data: { firstName?: string; lastName?: string; phone?: string }) {
+  async updateUser(id: string, data: { fullName?: string; phone?: string }) {
     try {
       return await this.prisma.user.update({
         where: { id },
         data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
+          fullName: data.fullName,
           phone: data.phone,
         },
         select: safeUserSelect,

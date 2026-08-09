@@ -24,16 +24,14 @@ export class AuthService {
     id: string;
     email: string;
     phone: string;
-    firstName: string | null;
-    lastName: string | null;
+    fullName: string;
     createdAt: Date;
   }): SafeUser {
     return {
       id: user.id,
       email: user.email,
       phone: user.phone,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      fullName: user.fullName,
       createdAt: user.createdAt,
     };
   }
@@ -59,8 +57,7 @@ export class AuthService {
       email: dto.email,
       phone: dto.phone,
       passwordHash,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
+      fullName: dto.fullName,
     });
 
     const accessToken = this.jwtService.sign({

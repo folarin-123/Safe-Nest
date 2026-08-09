@@ -46,12 +46,4 @@ export class RegisterAuthDto {
   @Length(8, 128)
   confirmPassword!: string;
 
-  get firstName(): string {
-    return this.fullName.split(' ')[0];
-  }
-
-  get lastName(): string | undefined {
-    const remainingNames = this.fullName.split(' ').slice(1).join(' ');
-    return remainingNames || undefined;
-  }
 }
