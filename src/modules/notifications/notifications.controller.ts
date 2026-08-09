@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Post, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { RemindersService } from './reminders.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -11,17 +11,19 @@ export class NotificationsController {
     private readonly remindersService: RemindersService,
   ) {}
 
-  @Get('health')
-  health() {
-    return { status: 'notifications module is alive' };
-  }
-
   @UseGuards(JwtAuthGuard)
   @Get()
   async findAll(@CurrentUser() user: any) {
     return this.notificationsService.findAllForUser(user.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/read')
+  async markRead(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.notificationsService.markAsRead(user.id, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('trigger-reminders')
   async triggerReminders() {
     return this.remindersService.runReminderCheck();

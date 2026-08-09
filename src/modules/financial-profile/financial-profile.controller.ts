@@ -1,12 +1,21 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { FinancialProfileService } from './financial-profile.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('financial-profile')
 export class FinancialProfileController {
   constructor(private readonly financialProfileService: FinancialProfileService) {}
 
-  @Get('health')
-  health() {
-    return { status: 'financial-profile module is alive' };
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  async getProfile(@CurrentUser() user: any) {
+    return this.financialProfileService.getProfile(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put()
+  async updateProfile(@CurrentUser() user: any, @Body() updateData: any) {
+    return this.financialProfileService.updateProfile(user.id, updateData);
   }
 }

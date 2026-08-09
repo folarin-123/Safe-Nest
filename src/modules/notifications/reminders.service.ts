@@ -58,19 +58,19 @@ export class RemindersService {
     id: string;
     firstName: string | null;
     goals: { goalName: string; requiredContribution: any }[];
-    settings: { reminderFrequency: string } | null;
+    settings: { theme?: string } | null;
   }): Promise<boolean> {
-    const frequency = user.settings?.reminderFrequency ?? 'weekly';
-    const frequencyDays = FREQUENCY_DAYS[frequency] ?? 7;
+    const frequency = 'weekly';
+    const frequencyDays = FREQUENCY_DAYS[frequency];
 
     const lastReminder = await this.prisma.notificationLog.findFirst({
       where: { userId: user.id, type: 'reminder' },
-      orderBy: { sentAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (lastReminder) {
       const daysSince =
-        (Date.now() - lastReminder.sentAt.getTime()) / (1000 * 60 * 60 * 24);
+        (Date.now() - lastReminder.createdAt.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince < frequencyDays) {
         return false; // not due yet
       }

@@ -3,9 +3,10 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { RemindersService } from './reminders.service';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
+  imports: [PrismaModule, ScheduleModule.forRoot()],
   controllers: [NotificationsController],
   providers: [NotificationsService, RemindersService],
   exports: [NotificationsService],
