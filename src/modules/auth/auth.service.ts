@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   ConflictException,
   UnauthorizedException,
@@ -38,6 +39,10 @@ export class AuthService {
   }
 
   async register(dto: RegisterAuthDto): Promise<AuthResult> {
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Password and confirmation password must match');
+    }
+
     const existingByEmail = await this.usersService.findByEmail(dto.email);
     if (existingByEmail) {
       throw new ConflictException('An account with this email already exists');
@@ -58,12 +63,12 @@ export class AuthService {
       lastName: dto.lastName,
     });
 
-    const token = this.jwtService.sign({
+    const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
     });
 
-    return { user: this.toSafeUser(user), token };
+    return { user: this.toSafeUser(user), accessToken };
   }
 
   async login(dto: LoginAuthDto): Promise<AuthResult> {
@@ -85,11 +90,11 @@ export class AuthService {
 
     await this.usersService.markLastLogin(user.id);
 
-    const token = this.jwtService.sign({
+    const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
     });
 
-    return { user: this.toSafeUser(user), token };
+    return { user: this.toSafeUser(user), accessToken };
   }
 }

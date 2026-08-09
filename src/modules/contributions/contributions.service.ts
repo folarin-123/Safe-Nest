@@ -16,7 +16,7 @@ export class ContributionsService {
       throw new NotFoundException('Goal not found');
     }
 
-    if (goal.status !== 'active') {
+    if (goal.status !== 'ACTIVE') {
       throw new BadRequestException('Cannot contribute to a goal that is not active');
     }
 
@@ -53,7 +53,7 @@ export class ContributionsService {
         data: {
           currentAmount: newCurrentAmount,
           requiredContribution,
-          status: isGoalComplete ? 'completed' : goal.status,
+          status: isGoalComplete ? 'COMPLETED' : goal.status,
         },
       }),
     ]);

@@ -8,7 +8,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Global pipes, guards, interceptors
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.use(helmet());
   app.use(cors());
 

@@ -14,5 +14,5 @@ export interface AuthTokenPayload {
 
 export interface AuthResult {
   user: SafeUser;
-  token: string;
+  accessToken: string;
 }

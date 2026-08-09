@@ -11,7 +11,24 @@ import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: (config: Record<string, unknown>) => {
+        const jwtSecret = config.JWT_SECRET;
+
+        if (typeof jwtSecret !== 'string' || jwtSecret.trim().length < 32) {
+          throw new Error(
+            'JWT_SECRET must be set and contain at least 32 characters.',
+          );
+        }
+
+        if (typeof config.DATABASE_URL !== 'string' || !config.DATABASE_URL) {
+          throw new Error('DATABASE_URL must be set.');
+        }
+
+        return config;
+      },
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
