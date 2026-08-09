@@ -32,6 +32,12 @@ export class GoalsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':id/progress')
+  async getProgress(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.goalsService.getGoalProgress(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/recalculate')
   async recalculate(@CurrentUser() user: any, @Param('id') id: string) {
     return this.goalsService.recalculate(id, user.id);

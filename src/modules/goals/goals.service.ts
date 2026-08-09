@@ -133,4 +133,35 @@ export class GoalsService {
       })),
     };
   }
+
+  async getGoalProgress(goalId: string, userId: string) {
+    const goal = await this.prisma.goal.findFirst({
+      where: { id: goalId, userId },
+    });
+
+    if (!goal) {
+      throw new BadRequestException('Goal not found');
+    }
+
+    const response = this.buildGoalResponse(goal);
+
+    return {
+      goalId: goal.id,
+      goalName: goal.goalName,
+      targetAmount: response.targetAmount,
+      currentAmount: response.currentAmount,
+      progressPercentage: response.progressPercentage,
+      amountRemaining: response.plan.amountRemaining,
+      requiredContribution: response.plan.requiredContribution,
+      daysRemaining: response.plan.daysRemaining,
+      monthsRemaining: response.plan.monthsRemaining,
+      status: response.plan.status,
+      expectedAmountByNow: response.plan.expectedAmountByNow,
+      isOnTrack: response.plan.isOnTrack,
+      feasibility: response.feasibility,
+      periodsRemaining: response.plan.periodsRemaining,
+      totalPeriods: response.plan.totalPeriods,
+      elapsedPeriods: response.plan.elapsedPeriods,
+    };
+  }
 }
