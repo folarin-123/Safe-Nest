@@ -18,7 +18,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 5052;
   await app.listen(port);
   console.log(`SafeNest running on port ${port}`);
 }
