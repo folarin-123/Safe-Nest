@@ -14,3 +14,40 @@ View one goal in detail - includes contribution history + progress percentage
 Record a contribution - updates currentAmount, recalculates plan, auto-completes goal if target hit
 List contributions for a goal
 Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
+
+
+
+## Notifications Module
+
+Handles sending notifications to users and scheduling automated savings reminders.
+
+### Features
+- Centralized notification service that respects user notification preferences
+  (email/push toggles from `UserSettings`)
+- All sent notifications are logged to the database for audit/history (`NotificationLog`)
+- Automated daily reminder job that checks users with active savings goals and
+  sends reminders based on each user's preferred frequency (daily/weekly/monthly)
+- Reminder logic prevents duplicate sends — a user won't be reminded again until
+  their chosen frequency interval has passed
+- Manual trigger endpoint for testing/verifying the reminder logic on demand
+
+### Endpoints
+| Method | Route                              | Auth required | Description                                      |
+|--------|-------------------------------------|---------------|---------------------------------------------------|
+| GET    | `/notifications/health`             | No            | Health check                                       |
+| GET    | `/notifications`                    | Yes (JWT)     | List the current user's notification history       |
+| POST   | `/notifications/trigger-reminders`  | No            | Manually runs the reminder check (for testing)      |
+
+### Scheduled Job
+- Runs automatically every day at 9:00 AM
+- Evaluates all active users with at least one active goal
+- Sends a reminder summarizing required contributions per active goal
+
+### Known limitations
+- Actual delivery (email/SMS/push) is not yet integrated with a provider —
+  notifications are currently logged and recorded in the database only
+- Notifications are only triggered by the scheduled reminder job so far;
+  other events (e.g. goal completion, successful contribution) do not yet
+  send notifications
+- Not yet tested against a live database — logic is implemented and compiles
+  cleanly, but end-to-end execution is unverified
