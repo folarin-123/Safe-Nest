@@ -1,11 +1,51 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
-import { calculateRequiredContribution } from '../goals/goals.utils';
+import { assessFeasibility, buildGoalPlan, calculateRequiredContribution } from '../goals/goals.utils';
 
 @Injectable()
 export class ContributionsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private serializeGoal(goal: any) {
+    return {
+      ...goal,
+      targetAmount: Number(goal.targetAmount ?? 0),
+      currentAmount: Number(goal.currentAmount ?? 0),
+      preferredContribution:
+        goal.preferredContribution === null || goal.preferredContribution === undefined
+          ? null
+          : Number(goal.preferredContribution),
+      requiredContribution:
+        goal.requiredContribution === null || goal.requiredContribution === undefined
+          ? null
+          : Number(goal.requiredContribution),
+      deadline: goal.deadline ? new Date(goal.deadline) : null,
+      createdAt: goal.createdAt ? new Date(goal.createdAt) : null,
+    };
+  }
+
+  private buildGoalResponse(goal: any) {
+    const serializedGoal = this.serializeGoal(goal);
+    const plan = buildGoalPlan({
+      targetAmount: serializedGoal.targetAmount,
+      currentAmount: serializedGoal.currentAmount,
+      deadline: serializedGoal.deadline,
+      contributionFrequency: serializedGoal.contributionFrequency,
+      preferredContribution: serializedGoal.preferredContribution ?? undefined,
+      createdAt: serializedGoal.createdAt,
+    });
+
+    return {
+      ...serializedGoal,
+      progressPercentage: plan.progressPercentage,
+      plan,
+      feasibility: assessFeasibility(
+        plan.requiredContribution,
+        serializedGoal.preferredContribution ?? undefined,
+      ),
+    };
+  }
 
   async create(goalId: string, userId: string, dto: CreateContributionDto) {
     const goal = await this.prisma.goal.findFirst({
@@ -21,19 +61,12 @@ export class ContributionsService {
     }
 
     const newCurrentAmount = Number(goal.currentAmount) + dto.amount;
-
-    let requiredContribution: number;
-    try {
-      requiredContribution = calculateRequiredContribution(
-        Number(goal.targetAmount),
-        newCurrentAmount,
-        goal.deadline,
-        goal.contributionFrequency as 'daily' | 'weekly' | 'monthly',
-      );
-    } catch (err) {
-      // Deadline has passed — still record the contribution, just can't recalculate a future plan
-      requiredContribution = 0;
-    }
+    const requiredContribution = calculateRequiredContribution(
+      Number(goal.targetAmount),
+      newCurrentAmount,
+      goal.deadline,
+      goal.contributionFrequency as 'daily' | 'weekly' | 'monthly',
+    );
 
     const isGoalComplete = newCurrentAmount >= Number(goal.targetAmount);
 
@@ -59,8 +92,11 @@ export class ContributionsService {
     ]);
 
     return {
-      contribution,
-      goal: updatedGoal,
+      contribution: {
+        ...contribution,
+        amount: Number(contribution.amount ?? 0),
+      },
+      goal: this.buildGoalResponse(updatedGoal),
       goalCompleted: isGoalComplete,
     };
   }
@@ -74,9 +110,14 @@ export class ContributionsService {
       throw new NotFoundException('Goal not found');
     }
 
-    return this.prisma.contribution.findMany({
+    const contributions = await this.prisma.contribution.findMany({
       where: { goalId },
       orderBy: { contributionDate: 'desc' },
     });
+
+    return contributions.map((contribution) => ({
+      ...contribution,
+      amount: Number(contribution.amount ?? 0),
+    }));
   }
 }
