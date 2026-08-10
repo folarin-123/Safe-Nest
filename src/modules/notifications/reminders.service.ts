@@ -29,10 +29,10 @@ export class RemindersService {
     const usersWithActiveGoals = await this.prisma.user.findMany({
       where: {
         isActive: true,
-        goals: { some: { status: 'active' } },
+        goals: { some: { status: 'ACTIVE' } },
       },
       include: {
-        goals: { where: { status: 'active' } },
+        goals: { where: { status: 'ACTIVE' } },
         settings: true,
       },
     });
@@ -64,7 +64,7 @@ export class RemindersService {
     const frequencyDays = FREQUENCY_DAYS[frequency];
 
     const lastReminder = await this.prisma.notificationLog.findFirst({
-      where: { userId: user.id, type: 'reminder' },
+      where: { userId: user.id, type: 'REMINDER' },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -85,7 +85,7 @@ export class RemindersService {
 
     await this.notificationsService.send(
       user.id,
-      'reminder',
+      'REMINDER',
       'Time to save toward your goals',
       `Hi ${user.firstName ?? 'there'}, here's a reminder on your active savings goals — ${goalSummaries}.`,
     );

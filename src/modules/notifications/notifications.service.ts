@@ -18,7 +18,7 @@ export class NotificationsService {
         userId,
         type,
         message,
-        status: 'sent',
+        status: 'UNREAD',
       },
     });
   }

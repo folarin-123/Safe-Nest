@@ -19,6 +19,15 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        passwordHash: true,
+        fullName: true,
+        isActive: true,
+        isVerified: true,
+      },
     });
   }
 
@@ -78,6 +87,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { lastLogin: new Date() },
+      select: { id: true },
     });
   }
 

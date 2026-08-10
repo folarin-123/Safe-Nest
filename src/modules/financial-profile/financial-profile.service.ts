@@ -22,7 +22,17 @@ export class FinancialProfileService {
     };
   }
 
-  async updateProfile(userId: string, data: Partial<{ incomeAmount: number; incomeFrequency: string; fixedExpenses: any; variableExpenses: any; existingSavings: number; existingCommitments: any; }>) {
+  async updateProfile(
+    userId: string,
+    data: Partial<{
+      incomeAmount: number;
+      incomeFrequency: string;
+      fixedExpenses: unknown;
+      variableExpenses: unknown;
+      existingSavings: number;
+      existingCommitments: unknown;
+    }>,
+  ) {
     const existingProfile = await this.prisma.userFinancialProfile.findUnique({
       where: { userId },
     });

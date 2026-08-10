@@ -99,6 +99,8 @@ model Contribution {
   goal Goal @relation(fields: [goalId], references: [id])
   user User @relation(fields: [userId], references: [id])
 
+  @@index([goalId])
+  @@index([userId])
   @@map("contributions")
 }
 
@@ -110,6 +112,7 @@ model ManualTransaction {
 
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([userId])
   @@map("manual_transactions")
 }
 
@@ -123,6 +126,7 @@ model NotificationLog {
 
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([userId, status])
   @@map("notification_logs")
 }
 

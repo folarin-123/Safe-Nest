@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -9,6 +11,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { EmailModule } from './common/email/email.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -20,6 +23,15 @@ import { EmailModule } from './common/email/email.module';
         if (typeof jwtSecret !== 'string' || jwtSecret.trim().length < 32) {
           throw new Error(
             'JWT_SECRET must be set and contain at least 32 characters.',
+          );
+        }
+
+        if (
+          typeof config.JWT_EXPIRES_IN !== 'string' ||
+          !/^[0-9]+[smhd]$/.test(config.JWT_EXPIRES_IN)
+        ) {
+          throw new Error(
+            'JWT_EXPIRES_IN must be set and use a valid duration like 15m, 1h, or 24h.',
           );
         }
 
@@ -43,8 +55,34 @@ import { EmailModule } from './common/email/email.module';
           throw new Error('SMTP_PASS must be set.');
         }
 
+        if (typeof config.FRONTEND_URL === 'string' && config.FRONTEND_URL.trim()) {
+          config.FRONTEND_URL.split(',').forEach((entry) => {
+            const value = entry.trim();
+            if (value) {
+              try {
+                new URL(value);
+              } catch {
+                throw new Error(
+                  'FRONTEND_URL must be a valid URL or comma-separated list of URLs.',
+                );
+              }
+            }
+          });
+        }
+
+        if (
+          config.NODE_ENV === 'production' &&
+          (!config.FRONTEND_URL || typeof config.FRONTEND_URL !== 'string' || !config.FRONTEND_URL.trim())
+        ) {
+          throw new Error('FRONTEND_URL must be set in production.');
+        }
+
         return config;
       },
+    }),
+    ThrottlerModule.forRoot({
+      ttl: 60,
+      limit: 20,
     }),
     EmailModule,
     PrismaModule,
@@ -57,6 +95,15 @@ import { EmailModule } from './common/email/email.module';
     FinancialProfileModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
+  ],
 })
 export class AppModule {}

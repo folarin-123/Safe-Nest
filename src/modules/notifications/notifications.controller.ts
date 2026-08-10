@@ -23,9 +23,4 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(user.id, id);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('trigger-reminders')
-  async triggerReminders() {
-    return this.remindersService.runReminderCheck();
-  }
 }

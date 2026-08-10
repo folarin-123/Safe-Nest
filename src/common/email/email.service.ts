@@ -16,7 +16,7 @@ export class EmailService {
     const pass = configService.getOrThrow<string>('SMTP_PASS');
 
     this.fromAddress =
-      configService.get<string>('EMAIL_FROM') ?? `no-reply@${new URL(`https://${host}`).hostname}`;
+      configService.get<string>('EMAIL_FROM') ?? this.getDefaultFromAddress(host);
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -27,6 +27,14 @@ export class EmailService {
         pass,
       },
     });
+  }
+
+  private getDefaultFromAddress(host: string) {
+    try {
+      return `no-reply@${new URL(`https://${host}`).hostname}`;
+    } catch {
+      return 'no-reply@example.com';
+    }
   }
 
   async sendMail(options: {
