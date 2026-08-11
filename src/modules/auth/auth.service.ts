@@ -31,14 +31,14 @@ export class AuthService {
     email: string;
     phone: string;
     fullName: string;
-    createdAt: Date;
+    createdAt?: Date;
   }): SafeUser {
     return {
       id: user.id,
       email: user.email,
       phone: user.phone,
       fullName: user.fullName,
-      createdAt: user.createdAt,
+      createdAt: user.createdAt ?? new Date(),
     };
   }
 
