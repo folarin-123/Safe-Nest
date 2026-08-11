@@ -1,11 +1,10 @@
 import {
   IsString,
-  IsNotEmpty,
+  IsOptional,
   IsNumber,
   IsPositive,
   IsDateString,
   IsIn,
-  IsOptional,
   IsInt,
   Min,
 } from 'class-validator';
@@ -16,10 +15,10 @@ const GOAL_CATEGORIES = [
   'RENT', 'SCHOOL_FEES', 'EMERGENCY', 'VACATION', 'CAPITAL', 'HOME',
 ] as const;
 
-export class CreateGoalDto {
+export class UpdateGoalDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  goalName!: string;
+  goalName?: string;
 
   @IsOptional()
   @IsIn(GOAL_CATEGORIES, {
@@ -27,17 +26,20 @@ export class CreateGoalDto {
   })
   category?: (typeof GOAL_CATEGORIES)[number];
 
+  @IsOptional()
   @IsNumber()
   @IsPositive({ message: 'Target amount must be greater than 0' })
-  targetAmount!: number;
+  targetAmount?: number;
 
+  @IsOptional()
   @IsDateString({}, { message: 'Deadline must be a valid date (YYYY-MM-DD)' })
-  deadline!: string;
+  deadline?: string;
 
+  @IsOptional()
   @IsIn(CONTRIBUTION_FREQUENCIES, {
     message: 'contributionFrequency must be one of: DAILY, WEEKLY, MONTHLY',
   })
-  contributionFrequency!: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  contributionFrequency?: (typeof CONTRIBUTION_FREQUENCIES)[number];
 
   @IsOptional()
   @IsNumber()

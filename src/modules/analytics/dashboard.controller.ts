@@ -3,8 +3,9 @@ import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@Controller('analytics')
-export class AnalyticsController {
+/** GET /api/v1/dashboard/summary */
+@Controller('dashboard')
+export class DashboardController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @UseGuards(JwtAuthGuard)

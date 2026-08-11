@@ -4,6 +4,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ApiResponseInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,23 +13,31 @@ async function bootstrap() {
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   const isProduction = process.env.NODE_ENV === 'production';
 
+  // ── Global API prefix — all routes are prefixed /api/v1 ──────────────────
+  app.setGlobalPrefix('api/v1');
+
+  // ── Input validation & sanitization ──────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
+  // ── Global error handling ─────────────────────────────────────────────────
   app.useGlobalFilters(new HttpExceptionFilter());
 
+  // ── Structured API response format ────────────────────────────────────────
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
+
+  // ── Security headers ──────────────────────────────────────────────────────
   app.use(helmet());
 
+  // ── CORS ──────────────────────────────────────────────────────────────────
   const corsOrigin = frontendUrl
-    ? frontendUrl.split(',').map((value) => value.trim())
+    ? frontendUrl.split(',').map((v) => v.trim())
     : isProduction
     ? false
     : true;
@@ -41,13 +50,11 @@ async function bootstrap() {
   });
 
   if (isProduction && !frontendUrl) {
-    logger.warn(
-      'FRONTEND_URL is not configured in production. CORS is disabled until a valid origin is provided.',
-    );
+    logger.warn('FRONTEND_URL is not configured. CORS is disabled until a valid origin is set.');
   }
 
   const port = process.env.PORT || 5052;
   await app.listen(port);
-  logger.log(`SafeNest running on port ${port}`);
+  logger.log(`SafeNest running on port ${port} — base: /api/v1`);
 }
 bootstrap();

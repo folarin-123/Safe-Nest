@@ -1,9 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
+import { UpdateGoalDto } from './dto/update-goal.dto';
 import {
-  assessFeasibility,
+  buildGoalResponse,
   buildGoalPlan,
+  calculateGoalHealthScore,
   calculateRequiredContribution,
 } from './goals.utils';
 
@@ -11,47 +13,7 @@ import {
 export class GoalsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private serializeGoal(goal: any) {
-    return {
-      ...goal,
-      targetAmount: Number(goal.targetAmount ?? 0),
-      currentAmount: Number(goal.currentAmount ?? 0),
-      preferredContribution:
-        goal.preferredContribution === null || goal.preferredContribution === undefined
-          ? null
-          : Number(goal.preferredContribution),
-      requiredContribution:
-        goal.requiredContribution === null || goal.requiredContribution === undefined
-          ? null
-          : Number(goal.requiredContribution),
-      deadline: goal.deadline ? new Date(goal.deadline) : null,
-      createdAt: goal.createdAt ? new Date(goal.createdAt) : null,
-    };
-  }
-
-  private buildGoalResponse(goal: any) {
-    const serializedGoal = this.serializeGoal(goal);
-    const plan = buildGoalPlan({
-      targetAmount: serializedGoal.targetAmount,
-      currentAmount: serializedGoal.currentAmount,
-      deadline: serializedGoal.deadline,
-      contributionFrequency: serializedGoal.contributionFrequency,
-      preferredContribution: serializedGoal.preferredContribution ?? undefined,
-      createdAt: serializedGoal.createdAt,
-    });
-
-    const feasibility = assessFeasibility(
-      plan.requiredContribution,
-      serializedGoal.preferredContribution ?? undefined,
-    );
-
-    return {
-      ...serializedGoal,
-      progressPercentage: plan.progressPercentage,
-      plan,
-      feasibility,
-    };
-  }
+  // ─── POST /api/v1/goals ───────────────────────────────────────────────────
 
   async create(userId: string, dto: CreateGoalDto) {
     const deadline = new Date(dto.deadline);
@@ -63,55 +25,47 @@ export class GoalsService {
       dto.contributionFrequency,
     );
 
+    // Compute initial health score so it is persisted from the start
+    const plan = buildGoalPlan({
+      targetAmount: dto.targetAmount,
+      currentAmount: 0,
+      deadline,
+      contributionFrequency: dto.contributionFrequency,
+    });
+    const health = calculateGoalHealthScore(plan, dto.targetAmount);
+
     const goal = await this.prisma.goal.create({
       data: {
         userId,
-        categoryId: dto.categoryId,
         goalName: dto.goalName,
+        category: dto.category,
         targetAmount: dto.targetAmount,
         deadline,
         contributionFrequency: dto.contributionFrequency,
         preferredContribution: dto.preferredContribution,
         requiredContribution,
         description: dto.description,
+        priority: dto.priority ?? 0,
+        goalHealthScore: health.score,
+        status: health.status,
       },
     });
 
-    return this.buildGoalResponse(goal);
+    return buildGoalResponse(goal as unknown as Record<string, unknown>);
   }
 
-  async recalculate(goalId: string, userId: string) {
-    const goal = await this.prisma.goal.findFirst({
-      where: { id: goalId, userId },
-    });
-
-    if (!goal) {
-      throw new BadRequestException('Goal not found');
-    }
-
-    const requiredContribution = calculateRequiredContribution(
-      Number(goal.targetAmount),
-      Number(goal.currentAmount),
-      goal.deadline,
-      goal.contributionFrequency as 'daily' | 'weekly' | 'monthly',
-    );
-
-    const updatedGoal = await this.prisma.goal.update({
-      where: { id: goalId },
-      data: { requiredContribution },
-    });
-
-    return this.buildGoalResponse(updatedGoal);
-  }
+  // ─── GET /api/v1/goals ────────────────────────────────────────────────────
 
   async findAllForUser(userId: string) {
     const goals = await this.prisma.goal.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
     });
 
-    return goals.map((goal) => this.buildGoalResponse(goal));
+    return goals.map((g) => buildGoalResponse(g as unknown as Record<string, unknown>));
   }
+
+  // ─── GET /api/v1/goals/:id — includes health score & full breakdown ────────
 
   async findOne(goalId: string, userId: string) {
     const goal = await this.prisma.goal.findFirst({
@@ -119,49 +73,76 @@ export class GoalsService {
       include: { contributions: { orderBy: { contributionDate: 'desc' } } },
     });
 
-    if (!goal) {
-      throw new BadRequestException('Goal not found');
-    }
+    if (!goal) throw new NotFoundException('Goal not found');
 
-    const response = this.buildGoalResponse(goal);
+    const response = buildGoalResponse(goal as unknown as Record<string, unknown>);
 
     return {
       ...response,
-      contributions: goal.contributions.map((contribution: any) => ({
-        ...contribution,
-        amount: Number(contribution.amount ?? 0),
+      contributions: goal.contributions.map((c: any) => ({
+        ...c,
+        amount: Number(c.amount ?? 0),
       })),
     };
   }
 
-  async getGoalProgress(goalId: string, userId: string) {
-    const goal = await this.prisma.goal.findFirst({
-      where: { id: goalId, userId },
-    });
+  // ─── PUT /api/v1/goals/:id — goal adjustment / scenario update ────────────
 
-    if (!goal) {
-      throw new BadRequestException('Goal not found');
+  async update(goalId: string, userId: string, dto: UpdateGoalDto) {
+    const existing = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!existing) throw new NotFoundException('Goal not found');
+
+    if (existing.status === 'ACHIEVED') {
+      throw new BadRequestException('Cannot update an already achieved goal');
     }
 
-    const response = this.buildGoalResponse(goal);
+    const deadline = dto.deadline ? new Date(dto.deadline) : existing.deadline;
+    const targetAmount = dto.targetAmount ?? Number(existing.targetAmount);
+    const currentAmount = Number(existing.currentAmount);
+    const frequency = dto.contributionFrequency ?? existing.contributionFrequency;
 
-    return {
-      goalId: goal.id,
-      goalName: goal.goalName,
-      targetAmount: response.targetAmount,
-      currentAmount: response.currentAmount,
-      progressPercentage: response.progressPercentage,
-      amountRemaining: response.plan.amountRemaining,
-      requiredContribution: response.plan.requiredContribution,
-      daysRemaining: response.plan.daysRemaining,
-      monthsRemaining: response.plan.monthsRemaining,
-      status: response.plan.status,
-      expectedAmountByNow: response.plan.expectedAmountByNow,
-      isOnTrack: response.plan.isOnTrack,
-      feasibility: response.feasibility,
-      periodsRemaining: response.plan.periodsRemaining,
-      totalPeriods: response.plan.totalPeriods,
-      elapsedPeriods: response.plan.elapsedPeriods,
-    };
+    const newRequired = calculateRequiredContribution(
+      targetAmount,
+      currentAmount,
+      deadline,
+      frequency,
+    );
+
+    const plan = buildGoalPlan({
+      targetAmount,
+      currentAmount,
+      deadline,
+      contributionFrequency: frequency,
+      createdAt: existing.createdAt,
+    });
+    const health = calculateGoalHealthScore(plan, targetAmount);
+
+    const [updatedGoal] = await this.prisma.$transaction([
+      this.prisma.goal.update({
+        where: { id: goalId },
+        data: {
+          goalName: dto.goalName,
+          category: dto.category,
+          targetAmount: dto.targetAmount,
+          deadline: dto.deadline ? deadline : undefined,
+          contributionFrequency: dto.contributionFrequency,
+          preferredContribution: dto.preferredContribution,
+          description: dto.description,
+          priority: dto.priority,
+          requiredContribution: newRequired,
+          goalHealthScore: health.score,
+          status: health.status,
+        },
+      }),
+      // Record adjustment in audit log
+      this.prisma.goalAdjustmentHistory.create({
+        data: {
+          goalId,
+          reason: `Goal updated: ${Object.keys(dto).filter((k) => (dto as any)[k] !== undefined).join(', ')}`,
+        },
+      }),
+    ]);
+
+    return buildGoalResponse(updatedGoal as unknown as Record<string, unknown>);
   }
 }

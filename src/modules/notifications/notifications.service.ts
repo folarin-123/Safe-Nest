@@ -7,18 +7,23 @@ export class NotificationsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async send(userId: string, type: string, subject: string, body: string) {
-    // Placeholder delivery — logs for now. Replace this with a real provider when ready.
-    this.logger.log(`Notification to user ${userId}: [${type}] ${subject}`);
-
-    const message = subject ? `${subject}\n\n${body}` : body;
+  async send(
+    userId: string,
+    type: string,
+    message: string,
+    goalId?: string,
+    scheduledFor?: Date,
+  ) {
+    this.logger.log(`Notification to user ${userId}: [${type}] ${message}`);
 
     return this.prisma.notificationLog.create({
       data: {
         userId,
+        goalId: goalId ?? null,
         type,
         message,
-        status: 'UNREAD',
+        isRead: false,
+        scheduledFor: scheduledFor ?? null,
       },
     });
   }
@@ -29,9 +34,10 @@ export class NotificationsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return notifications.map((notification) => ({
-      ...notification,
-      createdAt: notification.createdAt.toISOString(),
+    return notifications.map((n) => ({
+      ...n,
+      createdAt: n.createdAt.toISOString(),
+      scheduledFor: n.scheduledFor ? n.scheduledFor.toISOString() : null,
     }));
   }
 
@@ -40,13 +46,11 @@ export class NotificationsService {
       where: { id: notificationId, userId },
     });
 
-    if (!notification) {
-      throw new NotFoundException('Notification not found');
-    }
+    if (!notification) throw new NotFoundException('Notification not found');
 
     return this.prisma.notificationLog.update({
       where: { id: notificationId },
-      data: { status: 'READ' },
+      data: { isRead: true },
     });
   }
 }
