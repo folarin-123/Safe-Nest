@@ -10,12 +10,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  /** POST /api/v1/auth/register — rate limit: 5 req/min */
   @Throttle(5, 60)
   @Post('register')
   async register(@Body() registerDto: RegisterAuthDto) {
     return this.authService.register(registerDto);
   }
 
+  /** POST /api/v1/auth/login — rate limit: 10 req/min */
   @Throttle(10, 60)
   @Post('login')
   async login(@Body() loginDto: LoginAuthDto) {

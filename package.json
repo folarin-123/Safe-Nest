@@ -15,7 +15,8 @@
     "prisma:studio": "prisma studio",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:logs": "docker compose logs -f db"
+    "db:logs": "docker compose logs -f db",
+    "test": "node --require tsx/cjs --test test/**/*.test.ts"
   },
   "dependencies": {
     "@nestjs/bull": "^10.0.0",

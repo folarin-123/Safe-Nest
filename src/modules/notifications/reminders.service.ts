@@ -3,12 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 
-const FREQUENCY_DAYS: Record<string, number> = {
-  daily: 1,
-  weekly: 7,
-  monthly: 30,
-};
-
 @Injectable()
 export class RemindersService {
   private readonly logger = new Logger(RemindersService.name);
@@ -38,7 +32,6 @@ export class RemindersService {
     });
 
     let sentCount = 0;
-
     for (const user of usersWithActiveGoals) {
       const sent = await this.maybeSendReminder(user);
       if (sent) sentCount++;
@@ -48,21 +41,16 @@ export class RemindersService {
       `Reminder check complete — evaluated ${usersWithActiveGoals.length} users, sent ${sentCount} reminders`,
     );
 
-    return {
-      usersEvaluated: usersWithActiveGoals.length,
-      remindersSent: sentCount,
-    };
+    return { usersEvaluated: usersWithActiveGoals.length, remindersSent: sentCount };
   }
 
   private async maybeSendReminder(user: {
     id: string;
     firstName: string | null;
     goals: { goalName: string; requiredContribution: any }[];
-    settings: { id: string; userId: string; theme: string | null } | null;
+    settings: { id: string; userId: string; theme: string | null; mfaEnabled: boolean } | null;
   }): Promise<boolean> {
-    const frequency = 'weekly';
-    const frequencyDays = FREQUENCY_DAYS[frequency];
-
+    // Respect weekly reminder cadence
     const lastReminder = await this.prisma.notificationLog.findFirst({
       where: { userId: user.id, type: 'REMINDER' },
       orderBy: { createdAt: 'desc' },
@@ -71,9 +59,7 @@ export class RemindersService {
     if (lastReminder) {
       const daysSince =
         (Date.now() - lastReminder.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince < frequencyDays) {
-        return false; // not due yet
-      }
+      if (daysSince < 7) return false;
     }
 
     const goalSummaries = user.goals
@@ -86,8 +72,7 @@ export class RemindersService {
     await this.notificationsService.send(
       user.id,
       'REMINDER',
-      'Time to save toward your goals',
-      `Hi ${user.firstName ?? 'there'}, here's a reminder on your active savings goals — ${goalSummaries}.`,
+      `Hi ${user.firstName ?? 'there'}, here's your savings reminder — ${goalSummaries}.`,
     );
 
     return true;

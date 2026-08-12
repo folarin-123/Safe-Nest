@@ -9,7 +9,7 @@ export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly remindersService: RemindersService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard)
   @Get()

@@ -1,24 +1,28 @@
-import { IsOptional, IsString, IsNumber, IsPositive, IsArray, ValidateNested, IsObject } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsNumber, IsPositive, IsObject } from 'class-validator';
 
-export class UpdateFinancialProfileDto {
+export class UpsertFinancialProfileDto {
+  /** PRD: monthlyIncome */
   @IsOptional()
   @IsNumber()
   @IsPositive()
-  incomeAmount?: number;
+  monthlyIncome?: number;
 
+  /** PRD: incomeFrequency */
   @IsOptional()
   @IsString()
   incomeFrequency?: string;
 
+  /** PRD: fixedExpenses */
   @IsOptional()
   @IsObject()
   fixedExpenses?: Record<string, unknown>;
 
+  /** PRD: variableExpenses */
   @IsOptional()
   @IsObject()
   variableExpenses?: Record<string, unknown>;
 
+  /** PRD: existingSavings */
   @IsOptional()
   @IsNumber()
   @IsPositive()
@@ -28,3 +32,6 @@ export class UpdateFinancialProfileDto {
   @IsObject()
   existingCommitments?: Record<string, unknown>;
 }
+
+// Backward-compat alias
+export { UpsertFinancialProfileDto as UpdateFinancialProfileDto };

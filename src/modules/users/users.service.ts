@@ -27,6 +27,7 @@ export class UsersService {
         fullName: true,
         isActive: true,
         isVerified: true,
+        createdAt: true,
       },
     });
   }

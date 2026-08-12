@@ -1,6 +1,6 @@
 import { IsNumber, IsPositive, IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
 
-const SOURCE_TYPES = ['manual', 'bank_transfer', 'card', 'automatic'] as const;
+const TRACKING_TYPES = ['MANUAL', 'BANK_SYNC'] as const;
 
 export class CreateContributionDto {
   @IsNumber()
@@ -10,10 +10,11 @@ export class CreateContributionDto {
   @IsDateString({}, { message: 'contributionDate must be a valid date (YYYY-MM-DD)' })
   contributionDate!: string;
 
-  @IsIn(SOURCE_TYPES, {
-    message: 'sourceType must be one of: manual, bank_transfer, card, automatic',
+  /** PRD: trackingType — MANUAL or BANK_SYNC */
+  @IsIn(TRACKING_TYPES, {
+    message: 'trackingType must be one of: MANUAL, BANK_SYNC',
   })
-  sourceType!: 'manual' | 'bank_transfer' | 'card' | 'automatic';
+  trackingType!: 'MANUAL' | 'BANK_SYNC';
 
   @IsOptional()
   @IsString()
