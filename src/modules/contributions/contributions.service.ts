@@ -12,7 +12,7 @@ import {
 export class ContributionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** POST /api/v1/goals/:id/contributions — Record manual or synced contribution */
+  
   async create(goalId: string, userId: string, dto: CreateContributionDto) {
     const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
 
@@ -35,7 +35,7 @@ export class ContributionsService {
           goal.contributionFrequency,
         );
 
-    // Recompute health score after contribution
+    
     const plan = buildGoalPlan({
       targetAmount,
       currentAmount: newCurrentAmount,
@@ -51,8 +51,9 @@ export class ContributionsService {
           goalId,
           userId,
           amount: dto.amount,
-          contributionDate: new Date(dto.contributionDate),
+          sourceType: dto.trackingType,
           trackingType: dto.trackingType,
+          contributionDate: new Date(dto.contributionDate),
           externalReference: dto.externalReference,
         },
       }),

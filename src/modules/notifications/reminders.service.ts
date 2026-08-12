@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AccountStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 
@@ -22,7 +23,7 @@ export class RemindersService {
 
     const usersWithActiveGoals = await this.prisma.user.findMany({
       where: {
-        isActive: true,
+        status: AccountStatus.ACTIVE,
         goals: { some: { status: 'ACTIVE' } },
       },
       include: {
@@ -48,8 +49,19 @@ export class RemindersService {
     id: string;
     firstName: string | null;
     goals: { goalName: string; requiredContribution: any }[];
-    settings: { id: string; userId: string; theme: string | null; mfaEnabled: boolean } | null;
+    settings: {
+      id: string;
+      userId: string;
+      theme: string;
+      pushEnabled: boolean;
+      emailEnabled: boolean;
+    } | null;
   }): Promise<boolean> {
+    // Respect user notification preference, if settings exist
+    if (user.settings && !user.settings.pushEnabled && !user.settings.emailEnabled) {
+      return false;
+    }
+
     // Respect weekly reminder cadence
     const lastReminder = await this.prisma.notificationLog.findFirst({
       where: { userId: user.id, type: 'REMINDER' },

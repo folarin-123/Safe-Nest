@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -9,7 +10,7 @@ export class NotificationsService {
 
   async send(
     userId: string,
-    type: string,
+    type: NotificationType | string,
     message: string,
     goalId?: string,
     scheduledFor?: Date,
@@ -20,7 +21,7 @@ export class NotificationsService {
       data: {
         userId,
         goalId: goalId ?? null,
-        type,
+        type: type as NotificationType,
         message,
         isRead: false,
         scheduledFor: scheduledFor ?? null,
