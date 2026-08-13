@@ -1,8 +1,4 @@
-/**
- * goal-calculation.test.ts
- * Unit tests for GoalCalculationService — PRD Step 4.
- * Run: npm test
- */
+
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
