@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Injectable,
   ConflictException,
-  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -44,17 +43,25 @@ export class AuthService {
 
   async register(dto: RegisterAuthDto): Promise<AuthResult> {
     if (dto.password !== dto.confirmPassword) {
-      throw new BadRequestException('Password and confirmation password must match');
+      throw new BadRequestException(
+        'Password and confirmation password must match',
+      );
     }
 
     const existingByEmail = await this.usersService.findByEmail(dto.email);
+
     if (existingByEmail) {
-      throw new ConflictException('An account with this email already exists');
+      throw new ConflictException(
+        'An account with this email already exists',
+      );
     }
 
     const existingByPhone = await this.usersService.findByPhone(dto.phone);
+
     if (existingByPhone) {
-      throw new ConflictException('An account with this phone number already exists');
+      throw new ConflictException(
+        'An account with this phone number already exists',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
@@ -64,10 +71,14 @@ export class AuthService {
       phone: dto.phone,
       passwordHash,
       fullName: dto.fullName,
+      status: 'ACTIVE',
     });
 
     void this.sendWelcomeEmail(user.email, user.fullName).catch((error) => {
-      this.logger.warn('Welcome email could not be sent', error as Error);
+      this.logger.warn(
+        'Welcome email could not be sent',
+        error as Error,
+      );
     });
 
     const accessToken = this.jwtService.sign({
@@ -75,15 +86,28 @@ export class AuthService {
       email: user.email,
     });
 
-    return { user: this.toSafeUser(user), accessToken };
+    return {
+      user: this.toSafeUser(user),
+      accessToken,
+    };
   }
 
   private async sendWelcomeEmail(email: string, fullName: string) {
     return this.emailService.sendMail({
       to: email,
       subject: 'Welcome to SafeNest',
-      text: `Hi ${fullName},\n\nThanks for registering with SafeNest. Your account is now active and ready to use.\n\nIf you need support, reply to this email or visit our support page.\n\nBest regards,\nThe SafeNest team`,
-      html: `<p>Hi ${fullName},</p><p>Thanks for registering with <strong>SafeNest</strong>. Your account is now active and ready to use.</p><p>If you need support, reply to this email or visit our support page.</p><p>Best regards,<br/>The SafeNest team</p>`,
+      text: `Hi ${fullName},
+
+Thanks for registering with SafeNest. Your account is now active and ready to use.
+
+If you need support, reply to this email or visit our support page.
+
+Best regards,
+The SafeNest team`,
+      html: `<p>Hi ${fullName},</p>
+<p>Thanks for registering with <strong>SafeNest</strong>. Your account is now active and ready to use.</p>
+<p>If you need support, reply to this email or visit our support page.</p>
+<p>Best regards,<br/>The SafeNest team</p>`,
     });
   }
 
@@ -98,7 +122,10 @@ export class AuthService {
       throw new UnauthorizedException('This account has been deactivated');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
@@ -111,6 +138,9 @@ export class AuthService {
       email: user.email,
     });
 
-    return { user: this.toSafeUser(user), accessToken };
+    return {
+      user: this.toSafeUser(user),
+      accessToken,
+    };
   }
 }

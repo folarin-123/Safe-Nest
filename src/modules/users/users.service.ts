@@ -25,7 +25,7 @@ export class UsersService {
         phone: true,
         passwordHash: true,
         fullName: true,
-        status  : true,
+        status: true,
         isVerified: true,
         createdAt: true,
       },
@@ -51,6 +51,7 @@ export class UsersService {
     phone: string;
     passwordHash: string;
     fullName: string;
+    status?: 'ACTIVE' | 'PENDING_VERIFICATION';
   }) {
     try {
       return await this.prisma.user.create({
@@ -59,6 +60,7 @@ export class UsersService {
           phone: data.phone,
           passwordHash: data.passwordHash,
           fullName: data.fullName,
+          status: data.status ?? 'PENDING_VERIFICATION',
         },
         select: safeUserSelect,
       });
