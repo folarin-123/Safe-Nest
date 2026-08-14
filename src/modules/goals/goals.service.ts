@@ -13,7 +13,7 @@ import {
 export class GoalsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ─── POST /api/v1/goals ───────────────────────────────────────────────────
+  
 
   async create(userId: string, dto: CreateGoalDto) {
     const deadline = new Date(dto.deadline);
@@ -25,7 +25,6 @@ export class GoalsService {
       dto.contributionFrequency,
     );
 
-    // Compute initial health score so it is persisted from the start
     const plan = buildGoalPlan({
       targetAmount: dto.targetAmount,
       currentAmount: 0,
@@ -54,7 +53,6 @@ export class GoalsService {
     return buildGoalResponse(goal as unknown as Record<string, unknown>);
   }
 
-  // ─── GET /api/v1/goals ────────────────────────────────────────────────────
 
   async findAllForUser(userId: string) {
     const goals = await this.prisma.goal.findMany({
@@ -65,7 +63,7 @@ export class GoalsService {
     return goals.map((g) => buildGoalResponse(g as unknown as Record<string, unknown>));
   }
 
-  // ─── GET /api/v1/goals/:id — includes health score & full breakdown ────────
+  
 
   async findOne(goalId: string, userId: string) {
     const goal = await this.prisma.goal.findFirst({
@@ -86,7 +84,7 @@ export class GoalsService {
     };
   }
 
-  // ─── PUT /api/v1/goals/:id — goal adjustment / scenario update ────────────
+  
 
   async update(goalId: string, userId: string, dto: UpdateGoalDto) {
     const existing = await this.prisma.goal.findFirst({ where: { id: goalId, userId } });
@@ -134,7 +132,8 @@ export class GoalsService {
           status: health.status,
         },
       }),
-      // Record adjustment in audit log
+     
+      
       this.prisma.goalAdjustmentHistory.create({
         data: {
           goalId,

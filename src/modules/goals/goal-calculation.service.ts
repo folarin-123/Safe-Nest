@@ -36,11 +36,7 @@ export interface ScenarioResult {
 export class GoalCalculationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * calculateGoalProgress(goalId)
-   * PRD: Calculation of days/months remaining, progress percentage,
-   * required contribution, and expected completion.
-   */
+
   async calculateGoalProgress(goalId: string, userId: string) {
     const goal = await this.findGoalOrThrow(goalId, userId);
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
@@ -72,11 +68,7 @@ export class GoalCalculationService {
     };
   }
 
-  /**
-   * calculateGoalHealthScore(goalId)
-   * PRD: Evaluates progress based on contribution consistency, time elapsed
-   * vs remaining, and target variance. Persists score and status back to DB.
-   */
+  
   async calculateGoalHealthScore(
     goalId: string,
     userId: string,
@@ -101,11 +93,7 @@ export class GoalCalculationService {
     return { goalId, ...health };
   }
 
-  /**
-   * generateSmartRecoveryPlan(goalId, missedAmount)
-   * PRD: When a contribution is missed, recalculates future required savings
-   * schedule without changing the goal's deadline or target amount.
-   */
+
   async generateSmartRecoveryPlan(
     goalId: string,
     userId: string,
@@ -119,7 +107,7 @@ export class GoalCalculationService {
     const deadline = serialized['deadline'] as Date;
     const frequency = normalizeFrequency(serialized['contributionFrequency'] as string);
 
-    // Effective current amount after accounting for the missed contribution
+
     const effectiveCurrentAmount = Math.max(0, currentAmount - missedAmount);
     const newRequiredContribution = calculateRequiredContribution(
       targetAmount,
@@ -152,11 +140,8 @@ export class GoalCalculationService {
     };
   }
 
-  /**
-   * simulateGoalScenario(targetAmount, deadline, frequency)
-   * PRD: Stateless what-if projection given target, deadline, and frequency.
-   * Does NOT read or write to the database.
-   */
+  
+  
   simulateGoalScenario(
     targetAmount: number,
     deadline: string,

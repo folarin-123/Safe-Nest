@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// goals.utils.ts — Pure calculation functions for the SafeNest goal engine
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type ContributionFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
@@ -23,7 +20,7 @@ export interface GoalPlan {
 }
 
 export interface GoalHealthResult {
-  /** Numeric score 0 (worst) – 100 (best) */
+ 
   score: number;
   label: GoalHealthLabel;
   status: GoalPlanStatus;
@@ -38,9 +35,7 @@ interface GoalPlanInput {
   createdAt?: Date | string | null | undefined;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal helpers
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 export function toNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -100,9 +95,7 @@ function calculatePeriodsBetween(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Exported pure functions
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 export function calculatePeriodsUntilDeadline(
   deadline: Date,
@@ -110,13 +103,11 @@ export function calculatePeriodsUntilDeadline(
 ): number {
   const now = new Date();
   const daysRemaining = calculateDayDifference(now, deadline);
-  if (daysRemaining <= 0) return 1; // clamp to 1 — catches missed/overdue case
+  if (daysRemaining <= 0) return 1;
   return calculatePeriodsBetween(now, deadline, frequency);
 }
 
-/**
- * PRD formula: Required Contribution = (Target Amount − Current Amount) / Remaining Periods
- */
+
 export function calculateRequiredContribution(
   targetAmount: number,
   currentAmount: number,
@@ -130,9 +121,7 @@ export function calculateRequiredContribution(
   return roundCurrency(remaining / periods);
 }
 
-/**
- * Compares user's preferred contribution against required and returns a feasibility assessment.
- */
+
 export function assessFeasibility(
   requiredContribution: number,
   preferredContribution?: number,
@@ -145,10 +134,7 @@ export function assessFeasibility(
   };
 }
 
-/**
- * Full goal plan breakdown: progress %, days/months remaining, on-track status,
- * expected amount by now, and period analytics.
- */
+
 export function buildGoalPlan(input: GoalPlanInput): GoalPlan {
   const targetAmount = toNumber(input.targetAmount);
   const currentAmount = toNumber(input.currentAmount);
@@ -178,7 +164,7 @@ export function buildGoalPlan(input: GoalPlanInput): GoalPlan {
   const isOverdue = !isAchieved && daysRemaining <= 0;
   const isOnTrack = isAchieved || (!isOverdue && currentAmount >= expectedAmountByNow);
 
-  // PRD status transitions: ACTIVE → AT_RISK → OFF_TRACK → ACHIEVED
+  
   let status: GoalPlanStatus;
   if (isAchieved) {
     status = 'ACHIEVED';
@@ -209,22 +195,12 @@ export function buildGoalPlan(input: GoalPlanInput): GoalPlan {
   };
 }
 
-/**
- * PRD Goal Health Score Engine:
- * Evaluates progress based on contribution consistency, time elapsed vs remaining,
- * and target variance. Returns a 0–100 score with HEALTHY / AT_RISK / OFF_TRACK label.
- *
- * Scoring weights (sum to 100):
- *   - Progress ratio vs time elapsed  → 40 pts
- *   - Remaining time cushion          → 30 pts
- *   - Deficit vs expected             → 30 pts
- */
 export function calculateGoalHealthScore(plan: GoalPlan, targetAmount: number): GoalHealthResult {
   if (plan.status === 'ACHIEVED') {
     return { score: 100, label: 'HEALTHY', status: 'ACHIEVED' };
   }
 
-  // 1. Progress vs time (0–40)
+
   const timeElapsedRatio =
     plan.totalPeriods > 0 ? Math.min(1, plan.elapsedPeriods / plan.totalPeriods) : 0;
   const progressRatio =

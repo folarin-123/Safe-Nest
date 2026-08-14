@@ -10,7 +10,7 @@ export class CreateContributionDto {
   @IsDateString({}, { message: 'contributionDate must be a valid date (YYYY-MM-DD)' })
   contributionDate!: string;
 
-  /** PRD: trackingType — MANUAL or BANK_SYNC */
+ 
   @IsIn(TRACKING_TYPES, {
     message: 'trackingType must be one of: MANUAL, BANK_SYNC',
   })
