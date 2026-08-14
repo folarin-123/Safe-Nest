@@ -16,36 +16,6 @@ List contributions for a goal
 Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
 
 
-## HTTP API routes
-
-All routes are prefixed with `/api/v1` and require `Authorization: Bearer <accessToken>`.
-
-| Method | Route | Body | Purpose |
-|---|---|---|---|
-| POST | `/goals/simulate` | `{ "targetAmount": 100000, "currentAmount": 20000, "deadline": "2026-12-31", "frequency": "MONTHLY" }` | Calculate a plan without saving a goal. |
-| GET | `/goals/:id/progress` | — | Return current progress, required contribution, timeline, and on-track status. |
-| GET | `/goals/:id/health` | — | Calculate and persist the goal health score/status. |
-| POST | `/goals/:id/recovery-plan` | `{ "missedAmount": 5000 }` | Calculate the catch-up contribution needed after a missed amount. |
-| POST | `/goals/:goalId/contributions` | `{ "amount": 5000, "contributionDate": "2026-08-14", "trackingType": "MANUAL" }` | Atomically record a contribution and recalculate the goal. |
-| GET | `/goals/:goalId/contributions` | — | List a goal's contributions. |
-| GET | `/notifications` | — | List the current user's notifications. |
-| PATCH | `/notifications/:id/read` | — | Mark one notification as read. |
-
-`BANK_SYNC` contributions must include a unique `externalReference`; duplicate references return `409 Conflict`. Goal deadlines must be future calendar dates. Monetary request values accept no more than two decimal places.
-
-Successful responses use `{ "success": true, "data": ..., "timestamp": "..." }`. `POST /api/v1/auth/register` sends a welcome email only after creating a new user. Configure the SMTP variables in `.env` (see `.env.example`) to enable delivery; an email failure is logged and does not prevent account creation.
-
-### Database migration
-
-Apply committed migrations to a deployed database with:
-
-```bash
-npx prisma migrate deploy --schema=src/prisma/schema.prisma
-```
-
-For a local Render connection, use the database's **External Database URL** with `?sslmode=require`. Never commit or share database credentials.
-
-
 
 ## Notifications Module
 
@@ -60,6 +30,13 @@ Handles sending notifications to users and scheduling automated savings reminder
 - Reminder logic prevents duplicate sends — a user won't be reminded again until
   their chosen frequency interval has passed
 - Manual trigger endpoint for testing/verifying the reminder logic on demand
+
+### Endpoints
+| Method | Route                              | Auth required | Description                                      |
+|--------|-------------------------------------|---------------|---------------------------------------------------|
+| GET    | `/notifications/health`             | No            | Health check                                       |
+| GET    | `/notifications`                    | Yes (JWT)     | List the current user's notification history       |
+| POST   | `/notifications/trigger-reminders`  | No            | Manually runs the reminder check (for testing)      |
 
 ### Scheduled Job
 - Runs automatically every day at 9:00 AM

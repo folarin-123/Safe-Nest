@@ -13,9 +13,10 @@ async function bootstrap() {
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   const isProduction = process.env.NODE_ENV === 'production';
 
+  // ── Global API prefix — all routes are prefixed /api/v1 ──────────────────
   app.setGlobalPrefix('api/v1');
 
-
+  // ── Input validation & sanitization ──────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,14 +26,16 @@ async function bootstrap() {
     }),
   );
 
+  // ── Global error handling ─────────────────────────────────────────────────
   app.useGlobalFilters(new HttpExceptionFilter());
 
- 
+  // ── Structured API response format ────────────────────────────────────────
   app.useGlobalInterceptors(new ApiResponseInterceptor());
 
-  
+  // ── Security headers ──────────────────────────────────────────────────────
   app.use(helmet());
 
+  // ── CORS ──────────────────────────────────────────────────────────────────
   const corsOrigin = frontendUrl
     ? frontendUrl.split(',').map((v) => v.trim())
     : isProduction

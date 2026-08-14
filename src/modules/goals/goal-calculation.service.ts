@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { GoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   buildGoalPlan,
+  buildGoalResponse,
   calculateGoalHealthScore,
   calculateRequiredContribution,
   normalizeFrequency,
@@ -36,7 +36,11 @@ export interface ScenarioResult {
 export class GoalCalculationService {
   constructor(private readonly prisma: PrismaService) {}
 
-
+  /**
+   * calculateGoalProgress(goalId)
+   * PRD: Calculation of days/months remaining, progress percentage,
+   * required contribution, and expected completion.
+   */
   async calculateGoalProgress(goalId: string, userId: string) {
     const goal = await this.findGoalOrThrow(goalId, userId);
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
@@ -68,15 +72,16 @@ export class GoalCalculationService {
     };
   }
 
-  
+  /**
+   * calculateGoalHealthScore(goalId)
+   * PRD: Evaluates progress based on contribution consistency, time elapsed
+   * vs remaining, and target variance. Persists score and status back to DB.
+   */
   async calculateGoalHealthScore(
     goalId: string,
     userId: string,
   ): Promise<GoalHealthResult & { goalId: string }> {
     const goal = await this.findGoalOrThrow(goalId, userId);
-    if (goal.status === GoalStatus.ACHIEVED) {
-      return { goalId, score: 100, label: 'HEALTHY', status: 'ACHIEVED' };
-    }
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
     const plan = buildGoalPlan({
       targetAmount: serialized['targetAmount'] as number,
@@ -88,25 +93,25 @@ export class GoalCalculationService {
 
     const health = calculateGoalHealthScore(plan, serialized['targetAmount'] as number);
 
-    await this.prisma.goal.updateMany({
-      where: { id: goalId, userId, status: { not: GoalStatus.ACHIEVED } },
-      data: { goalHealthScore: health.score, status: health.status as GoalStatus },
+    await this.prisma.goal.update({
+      where: { id: goalId },
+      data: { goalHealthScore: health.score, status: health.status as any },
     });
 
     return { goalId, ...health };
   }
 
-
+  /**
+   * generateSmartRecoveryPlan(goalId, missedAmount)
+   * PRD: When a contribution is missed, recalculates future required savings
+   * schedule without changing the goal's deadline or target amount.
+   */
   async generateSmartRecoveryPlan(
     goalId: string,
     userId: string,
     missedAmount: number,
   ): Promise<SmartRecoveryPlan> {
     const goal = await this.findGoalOrThrow(goalId, userId);
-    if (goal.status === GoalStatus.ACHIEVED) {
-      const plan = buildGoalPlan({ targetAmount: goal.targetAmount, currentAmount: goal.currentAmount, deadline: goal.deadline, contributionFrequency: goal.contributionFrequency, createdAt: goal.createdAt });
-      return { goalId, missedAmount, newRequiredContribution: 0, periodsRemaining: 0, catchUpNote: 'This goal has already been achieved.', updatedHealth: { score: 100, label: 'HEALTHY', status: 'ACHIEVED' }, plan };
-    }
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
 
     const targetAmount = serialized['targetAmount'] as number;
@@ -114,17 +119,18 @@ export class GoalCalculationService {
     const deadline = serialized['deadline'] as Date;
     const frequency = normalizeFrequency(serialized['contributionFrequency'] as string);
 
-
+    // Effective current amount after accounting for the missed contribution
+    const effectiveCurrentAmount = Math.max(0, currentAmount - missedAmount);
     const newRequiredContribution = calculateRequiredContribution(
       targetAmount,
-      currentAmount,
+      effectiveCurrentAmount,
       deadline,
       frequency,
     );
 
     const plan = buildGoalPlan({
       targetAmount,
-      currentAmount,
+      currentAmount: effectiveCurrentAmount,
       deadline,
       contributionFrequency: frequency,
       createdAt: serialized['createdAt'] as Date,
@@ -146,8 +152,11 @@ export class GoalCalculationService {
     };
   }
 
-  
-  
+  /**
+   * simulateGoalScenario(targetAmount, deadline, frequency)
+   * PRD: Stateless what-if projection given target, deadline, and frequency.
+   * Does NOT read or write to the database.
+   */
   simulateGoalScenario(
     targetAmount: number,
     deadline: string,
