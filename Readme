@@ -16,6 +16,20 @@ List contributions for a goal
 Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
 
 
+## Goal calculation HTTP routes
+
+All routes are prefixed with `/api/v1` and require `Authorization: Bearer <accessToken>`.
+
+| Method | Route | Body | Purpose |
+|---|---|---|---|
+| POST | `/goals/simulate` | `{ "targetAmount": 100000, "currentAmount": 20000, "deadline": "2026-12-31", "frequency": "MONTHLY" }` | Calculate a plan without saving a goal. |
+| GET | `/goals/:id/progress` | — | Return current progress, required contribution, timeline, and on-track status. |
+| GET | `/goals/:id/health` | — | Calculate and persist the goal health score/status. |
+| POST | `/goals/:id/recovery-plan` | `{ "missedAmount": 5000 }` | Calculate the catch-up contribution needed after a missed amount. |
+
+Successful responses use `{ "success": true, "data": ..., "timestamp": "..." }`. `POST /api/v1/auth/register` sends a welcome email only after creating a new user. Configure the SMTP variables in `.env` (see `.env.example`) to enable delivery; an email failure is logged and does not prevent account creation.
+
+
 
 ## Notifications Module
 

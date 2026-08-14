@@ -3,6 +3,8 @@ import { GoalsService } from './goals.service';
 import { GoalCalculationService } from './goal-calculation.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
+import { SimulateGoalDto } from './dto/simulate-goal.dto';
+import { RecoveryPlanDto } from './dto/recovery-plan.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -27,9 +29,7 @@ export class GoalsController {
 
   @UseGuards(JwtAuthGuard)
   @Post('simulate')
-  async simulateScenario(
-    @Body() body: { targetAmount: number; deadline: string; frequency: string; currentAmount?: number },
-  ) {
+  async simulateScenario(@Body() body: SimulateGoalDto) {
     return this.goalCalculationService.simulateGoalScenario(
       body.targetAmount,
       body.deadline,
@@ -71,8 +71,8 @@ export class GoalsController {
   async generateRecoveryPlan(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body('missedAmount') missedAmount: number,
+    @Body() body: RecoveryPlanDto,
   ) {
-    return this.goalCalculationService.generateSmartRecoveryPlan(id, user.id, missedAmount);
+    return this.goalCalculationService.generateSmartRecoveryPlan(id, user.id, body.missedAmount);
   }
 }
