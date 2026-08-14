@@ -16,7 +16,7 @@ export class GoalsService {
   
 
   async create(userId: string, dto: CreateGoalDto) {
-    const deadline = new Date(dto.deadline);
+    const deadline = dto.deadline;
 
     const requiredContribution = calculateRequiredContribution(
       dto.targetAmount,

@@ -159,12 +159,12 @@ model Contribution {
   trackingType String? @map("tracking_type") @db.VarChar(50)
 
   contributionDate  DateTime @default(now()) @map("date") @db.Timestamptz(6)
-  externalReference String?  @map("external_reference") @db.VarChar(255)
+  externalReference String?  @unique @map("external_reference") @db.VarChar(255)
 
   goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([goalId])
+  @@index([goalId, contributionDate(sort: Desc)])
   @@index([userId])
   @@map("contributions")
 }
@@ -197,6 +197,7 @@ model NotificationLog {
   goal Goal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
 
   @@index([userId, isRead])
+  @@index([userId, type, createdAt(sort: Desc)])
   @@map("notification_logs")
 }
 

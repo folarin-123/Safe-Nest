@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { GoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   buildGoalPlan,
@@ -73,6 +74,9 @@ export class GoalCalculationService {
     userId: string,
   ): Promise<GoalHealthResult & { goalId: string }> {
     const goal = await this.findGoalOrThrow(goalId, userId);
+    if (goal.status === GoalStatus.ACHIEVED) {
+      return { goalId, score: 100, label: 'HEALTHY', status: 'ACHIEVED' };
+    }
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
     const plan = buildGoalPlan({
       targetAmount: serialized['targetAmount'] as number,
@@ -84,9 +88,9 @@ export class GoalCalculationService {
 
     const health = calculateGoalHealthScore(plan, serialized['targetAmount'] as number);
 
-    await this.prisma.goal.update({
-      where: { id: goalId },
-      data: { goalHealthScore: health.score, status: health.status as any },
+    await this.prisma.goal.updateMany({
+      where: { id: goalId, userId, status: { not: GoalStatus.ACHIEVED } },
+      data: { goalHealthScore: health.score, status: health.status as GoalStatus },
     });
 
     return { goalId, ...health };
@@ -99,6 +103,10 @@ export class GoalCalculationService {
     missedAmount: number,
   ): Promise<SmartRecoveryPlan> {
     const goal = await this.findGoalOrThrow(goalId, userId);
+    if (goal.status === GoalStatus.ACHIEVED) {
+      const plan = buildGoalPlan({ targetAmount: goal.targetAmount, currentAmount: goal.currentAmount, deadline: goal.deadline, contributionFrequency: goal.contributionFrequency, createdAt: goal.createdAt });
+      return { goalId, missedAmount, newRequiredContribution: 0, periodsRemaining: 0, catchUpNote: 'This goal has already been achieved.', updatedHealth: { score: 100, label: 'HEALTHY', status: 'ACHIEVED' }, plan };
+    }
     const serialized = serializeGoalDecimal(goal as unknown as Record<string, unknown>);
 
     const targetAmount = serialized['targetAmount'] as number;
@@ -107,17 +115,16 @@ export class GoalCalculationService {
     const frequency = normalizeFrequency(serialized['contributionFrequency'] as string);
 
 
-    const effectiveCurrentAmount = Math.max(0, currentAmount - missedAmount);
     const newRequiredContribution = calculateRequiredContribution(
       targetAmount,
-      effectiveCurrentAmount,
+      currentAmount,
       deadline,
       frequency,
     );
 
     const plan = buildGoalPlan({
       targetAmount,
-      currentAmount: effectiveCurrentAmount,
+      currentAmount,
       deadline,
       contributionFrequency: frequency,
       createdAt: serialized['createdAt'] as Date,
