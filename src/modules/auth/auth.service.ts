@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { EmailService } from '../../common/email/email.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import { AuthResult, SafeUser } from './auth.types';
 
 const SALT_ROUNDS = 10;
@@ -41,7 +42,7 @@ export class AuthService {
     };
   }
 
-  async register(dto: RegisterAuthDto): Promise<AuthResult> {
+  async register(dto: RegisterAuthDto): Promise<AuthResult | { message: string }> {
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException(
         'Password and confirmation password must match',
@@ -66,34 +67,63 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
+    // Generate a 6-digit verification code & set expiration (15 mins from now)
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
     const user = await this.usersService.createUser({
       email: dto.email,
       phone: dto.phone,
       passwordHash,
       fullName: dto.fullName,
-      status: 'ACTIVE',
+      status: 'PENDING_VERIFICATION',
+      isVerified: false,
+      verificationCode,
+      verificationExpires,
     });
 
-    void this.sendWelcomeEmail(user.email, user.fullName).catch((error) => {
+    void this.sendWelcomeEmail(user.email, user.fullName, verificationCode).catch((error: unknown) => {
       this.logger.warn(
-        'Welcome email could not be sent',
-        error as Error,
+        `Welcome email could not be sent: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
-
     return {
-      user: this.toSafeUser(user),
-      accessToken,
+      message: 'Registration successful. Please check your email for the 6-digit verification code.',
     };
   }
 
-  private async sendWelcomeEmail(email: string, fullName: string) {
-    return this.emailService.sendTemplate(email, 'welcome', { fullName });
+  async verifyEmail(dto: VerifyEmailDto) {
+    const user = await this.usersService.findByEmail(dto.email);
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (user.isVerified) {
+      return { message: 'Account is already verified.' };
+    }
+
+    if (
+      user.verificationCode !== dto.code ||
+      !user.verificationExpires ||
+      user.verificationExpires < new Date()
+    ) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    await this.usersService.updateUser(user.id, {
+      isVerified: true,
+      status: 'ACTIVE',
+      verificationCode: null,
+      verificationExpires: null,
+    });
+
+    return { message: 'Account successfully verified. You can now log in.' };
+  }
+
+private async sendWelcomeEmail(email: string, fullName: string, code: string) {
+    return this.emailService.sendTemplate(email, 'welcome', { fullName, code } as any);
   }
 
   async login(dto: LoginAuthDto): Promise<AuthResult> {
@@ -104,7 +134,7 @@ export class AuthService {
     }
 
     if (user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('This account has been deactivated');
+      throw new UnauthorizedException('Please verify your account before logging in');
     }
 
     const isPasswordValid = await bcrypt.compare(

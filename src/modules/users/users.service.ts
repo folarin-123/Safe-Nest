@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccountStatus } from '@prisma/client';
 
 const safeUserSelect = {
   id: true,
@@ -27,6 +28,8 @@ export class UsersService {
         fullName: true,
         status: true,
         isVerified: true,
+        verificationCode: true,
+        verificationExpires: true,
         createdAt: true,
       },
     });
@@ -51,7 +54,10 @@ export class UsersService {
     phone: string;
     passwordHash: string;
     fullName: string;
-    status?: 'ACTIVE' | 'PENDING_VERIFICATION';
+    status?: AccountStatus;
+    isVerified?: boolean;
+    verificationCode?: string;
+    verificationExpires?: Date;
   }) {
     try {
       return await this.prisma.user.create({
@@ -61,8 +67,15 @@ export class UsersService {
           passwordHash: data.passwordHash,
           fullName: data.fullName,
           status: data.status ?? 'PENDING_VERIFICATION',
+          isVerified: data.isVerified ?? false,
+          verificationCode: data.verificationCode,
+          verificationExpires: data.verificationExpires,
         },
-        select: safeUserSelect,
+        select: {
+          ...safeUserSelect,
+          verificationCode: true,
+          verificationExpires: true,
+        },
       });
     } catch (error) {
       this.throwIfUniqueConstraint(error);
@@ -70,13 +83,27 @@ export class UsersService {
     }
   }
 
-  async updateUser(id: string, data: { fullName?: string; phone?: string }) {
+  async updateUser(
+    id: string,
+    data: {
+      fullName?: string;
+      phone?: string;
+      status?: AccountStatus;
+      isVerified?: boolean;
+      verificationCode?: string | null;
+      verificationExpires?: Date | null;
+    },
+  ) {
     try {
       return await this.prisma.user.update({
         where: { id },
         data: {
           fullName: data.fullName,
           phone: data.phone,
+          status: data.status,
+          isVerified: data.isVerified,
+          verificationCode: data.verificationCode,
+          verificationExpires: data.verificationExpires,
         },
         select: safeUserSelect,
       });
