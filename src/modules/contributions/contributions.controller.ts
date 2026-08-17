@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ContributionsService } from './contributions.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Controller('goals/:goalId/contributions')
 export class ContributionsController {
@@ -25,7 +26,11 @@ export class ContributionsController {
 
   @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(@CurrentUser() user: any, @Param('goalId') goalId: string) {
-    return this.contributionsService.findAllForGoal(goalId, user.id);
+  async findAll(
+    @CurrentUser() user: any,
+    @Param('goalId') goalId: string,
+    @Query() paginationDto: PaginationDto,
+  ) {
+    return this.contributionsService.findAllForGoal(goalId, user.id, paginationDto);
   }
 }
