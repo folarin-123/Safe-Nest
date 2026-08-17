@@ -93,22 +93,7 @@ export class AuthService {
   }
 
   private async sendWelcomeEmail(email: string, fullName: string) {
-    return this.emailService.sendMail({
-      to: email,
-      subject: 'Welcome to SafeNest',
-      text: `Hi ${fullName},
-
-Thanks for registering with SafeNest. Your account is now active and ready to use.
-
-If you need support, reply to this email or visit our support page.
-
-Best regards,
-The SafeNest team`,
-      html: `<p>Hi ${fullName},</p>
-<p>Thanks for registering with <strong>SafeNest</strong>. Your account is now active and ready to use.</p>
-<p>If you need support, reply to this email or visit our support page.</p>
-<p>Best regards,<br/>The SafeNest team</p>`,
-    });
+    return this.emailService.sendTemplate(email, 'welcome', { fullName });
   }
 
   async login(dto: LoginAuthDto): Promise<AuthResult> {

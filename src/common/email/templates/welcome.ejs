@@ -1,0 +1,25 @@
+<p>Hi <%= fullName %>,</p>
+
+<p>
+  Thanks for registering with <strong>SafeNest</strong>. Your account is now active
+  and ready to use.
+</p>
+
+<p>
+  Start setting savings goals, track contributions, and stay on top of your
+  financial plans — all in one place.
+</p>
+
+<% if (typeof supportUrl !== 'undefined' && supportUrl) { %>
+<p>
+  If you need support, visit our
+  <a href="<%= supportUrl %>">support page</a>.
+</p>
+<% } else { %>
+<p>If you need support, reply to this email.</p>
+<% } %>
+
+<p>
+  Best regards,<br />
+  The SafeNest team
+</p>
