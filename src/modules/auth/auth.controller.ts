@@ -3,7 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
+
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -16,13 +16,6 @@ export class AuthController {
   @Post('register')
   async register(@Body() registerDto: RegisterAuthDto) {
     return this.authService.register(registerDto);
-  }
-
-  /** POST /api/v1/auth/verify — rate limit: 5 req/min */
-  @Throttle(5, 60)
-  @Post('verify')
-  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
-    return this.authService.verifyEmail(verifyEmailDto);
   }
 
   /** POST /api/v1/auth/login — rate limit: 10 req/min */
