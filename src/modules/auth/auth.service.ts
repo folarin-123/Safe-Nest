@@ -72,7 +72,6 @@ export class AuthService {
       passwordHash,
       fullName: dto.fullName,
       status: 'ACTIVE',
-      isVerified: true,
     });
 
     void this.sendWelcomeEmail(user.email, user.fullName).catch((error: unknown) => {

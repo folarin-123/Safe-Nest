@@ -8,7 +8,6 @@ const safeUserSelect = {
   phone: true,
   fullName: true,
   status: true,
-  isVerified: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -27,9 +26,6 @@ export class UsersService {
         passwordHash: true,
         fullName: true,
         status: true,
-        isVerified: true,
-        verificationCode: true,
-        verificationExpires: true,
         createdAt: true,
       },
     });
@@ -56,8 +52,6 @@ export class UsersService {
     fullName: string;
     status?: AccountStatus;
     isVerified?: boolean;
-    verificationCode?: string;
-    verificationExpires?: Date;
   }) {
     try {
       return await this.prisma.user.create({
@@ -66,16 +60,10 @@ export class UsersService {
           phone: data.phone,
           passwordHash: data.passwordHash,
           fullName: data.fullName,
-          status: data.status ?? 'PENDING_VERIFICATION',
-          isVerified: data.isVerified ?? false,
-          verificationCode: data.verificationCode,
-          verificationExpires: data.verificationExpires,
+          status: data.status ?? 'ACTIVE',
+          isVerified: data.isVerified ?? true,
         },
-        select: {
-          ...safeUserSelect,
-          verificationCode: true,
-          verificationExpires: true,
-        },
+        select: safeUserSelect,
       });
     } catch (error) {
       this.throwIfUniqueConstraint(error);
@@ -90,8 +78,6 @@ export class UsersService {
       phone?: string;
       status?: AccountStatus;
       isVerified?: boolean;
-      verificationCode?: string | null;
-      verificationExpires?: Date | null;
     },
   ) {
     try {
@@ -102,8 +88,6 @@ export class UsersService {
           phone: data.phone,
           status: data.status,
           isVerified: data.isVerified,
-          verificationCode: data.verificationCode,
-          verificationExpires: data.verificationExpires,
         },
         select: safeUserSelect,
       });
