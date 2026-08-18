@@ -38,6 +38,7 @@ function makePrisma(goalOverrides: Partial<Record<string, unknown>> = {}) {
     goal: {
       findFirst: async () => mockGoal,
       update: async ({ data }: { data: Record<string, unknown> }) => ({ ...mockGoal, ...data }),
+      updateMany: async () => ({ count: 1 }),
     },
   } as unknown as any;
 }

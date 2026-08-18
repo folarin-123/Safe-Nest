@@ -3,6 +3,7 @@ import { GoalStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
 import { buildGoalPlan, buildGoalResponse, calculateGoalHealthScore, calculateRequiredContribution } from '../goals/goals.utils';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Injectable()
 export class ContributionsService {
@@ -53,10 +54,39 @@ export class ContributionsService {
     }
   }
 
-  async findAllForGoal(goalId: string, userId: string) {
+async findAllForGoal(goalId: string, userId: string, paginationDto: PaginationDto) {
+    
+    const { page = 1, limit = 10 } = paginationDto;
+    
+    const skip = (page - 1) * limit;
+
     const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId }, select: { id: true } });
     if (!goal) throw new NotFoundException('Goal not found');
-    const contributions = await this.prisma.contribution.findMany({ where: { goalId }, orderBy: { contributionDate: 'desc' } });
-    return contributions.map((contribution) => ({ ...contribution, amount: contribution.amount.toFixed(2) }));
+
+    
+    const [contributions, total] = await Promise.all([
+      this.prisma.contribution.findMany({ 
+        where: { goalId }, 
+        orderBy: { contributionDate: 'desc' },
+        skip,
+        take: limit
+      }),
+      this.prisma.contribution.count({ where: { goalId } })
+    ]);
+
+    const data = contributions.map((contribution) => ({ 
+      ...contribution, 
+      amount: contribution.amount.toFixed(2) 
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 }

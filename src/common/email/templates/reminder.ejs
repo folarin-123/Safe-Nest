@@ -1,0 +1,16 @@
+<p>Hi <%= firstName %>,</p>
+
+<p>Here's your savings reminder for today:</p>
+
+<ul>
+  <% goals.forEach(function(goal) { %>
+  <li><strong><%= goal.name %></strong>: <%= goal.requiredAmount %> needed this period</li>
+  <% }); %>
+</ul>
+
+<p>Log in to SafeNest to record your contributions and stay on track.</p>
+
+<p>
+  Best regards,<br />
+  The SafeNest team
+</p>

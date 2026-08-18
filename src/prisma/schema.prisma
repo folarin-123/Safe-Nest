@@ -62,9 +62,13 @@ model User {
   firstName String? @map("first_name") @db.VarChar(100)
   lastName  String? @map("last_name") @db.VarChar(100)
 
-  status     AccountStatus @default(PENDING_VERIFICATION)
-  isVerified Boolean       @default(false) @map("is_verified")
-  mfaEnabled Boolean       @default(false) @map("mfa_enabled")
+  status       AccountStatus @default(PENDING_VERIFICATION)
+  isVerified   Boolean       @default(false) @map("is_verified")
+  mfaEnabled   Boolean       @default(false) @map("mfa_enabled")
+
+
+  verificationCode    String?   @map("verification_code") @db.VarChar(10)
+  verificationExpires DateTime? @map("verification_expires") @db.Timestamptz(6)
 
   lastLogin DateTime? @map("last_login") @db.Timestamptz(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -182,12 +186,12 @@ model ManualTransaction {
 }
 
 model NotificationLog {
-  id        String           @id @default(uuid()) @db.Uuid
-  userId    String           @map("user_id") @db.Uuid
-  goalId    String?          @map("goal_id") @db.Uuid
-  message   String
-  type      NotificationType
-  isRead    Boolean          @default(false) @map("is_read")
+  id       String           @id @default(uuid()) @db.Uuid
+  userId   String           @map("user_id") @db.Uuid
+  goalId   String?          @map("goal_id") @db.Uuid
+  message  String
+  type     NotificationType
+  isRead   Boolean          @default(false) @map("is_read")
 
   scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(6)
 

@@ -43,7 +43,6 @@ Apply committed migrations to a deployed database with:
 npx prisma migrate deploy --schema=src/prisma/schema.prisma
 ```
 
-For a local Render connection, use the database's **External Database URL** with `?sslmode=require`. Never commit or share database credentials.
 
 
 

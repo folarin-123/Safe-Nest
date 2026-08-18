@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccountStatus } from '@prisma/client';
 
 const safeUserSelect = {
   id: true,
@@ -7,7 +8,6 @@ const safeUserSelect = {
   phone: true,
   fullName: true,
   status: true,
-  isVerified: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -26,7 +26,6 @@ export class UsersService {
         passwordHash: true,
         fullName: true,
         status: true,
-        isVerified: true,
         createdAt: true,
       },
     });
@@ -51,7 +50,8 @@ export class UsersService {
     phone: string;
     passwordHash: string;
     fullName: string;
-    status?: 'ACTIVE' | 'PENDING_VERIFICATION';
+    status?: AccountStatus;
+    isVerified?: boolean;
   }) {
     try {
       return await this.prisma.user.create({
@@ -60,7 +60,8 @@ export class UsersService {
           phone: data.phone,
           passwordHash: data.passwordHash,
           fullName: data.fullName,
-          status: data.status ?? 'PENDING_VERIFICATION',
+          status: data.status ?? 'ACTIVE',
+          isVerified: data.isVerified ?? true,
         },
         select: safeUserSelect,
       });
@@ -70,13 +71,23 @@ export class UsersService {
     }
   }
 
-  async updateUser(id: string, data: { fullName?: string; phone?: string }) {
+  async updateUser(
+    id: string,
+    data: {
+      fullName?: string;
+      phone?: string;
+      status?: AccountStatus;
+      isVerified?: boolean;
+    },
+  ) {
     try {
       return await this.prisma.user.update({
         where: { id },
         data: {
           fullName: data.fullName,
           phone: data.phone,
+          status: data.status,
+          isVerified: data.isVerified,
         },
         select: safeUserSelect,
       });
