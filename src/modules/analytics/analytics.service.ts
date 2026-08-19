@@ -1,9 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  async trackEvent(
+    eventName: string,
+    properties: Record<string, unknown>,
+    userId?: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.analyticsEvent.create({
+        data: { eventName, userId: userId ?? null, properties },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Analytics event ${eventName} could not be recorded: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  trackCoreFeature(
+    userId: string,
+    featureName: string,
+    interactionType: string,
+  ): void {
+    void this.trackEvent('core_feature_clicked', {
+      feature_name: featureName,
+      interaction_type: interactionType,
+      user_id: userId,
+    }, userId);
+  }
 
   /**
    * GET /api/v1/dashboard/summary

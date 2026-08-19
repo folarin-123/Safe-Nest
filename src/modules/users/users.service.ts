@@ -27,6 +27,7 @@ export class UsersService {
         fullName: true,
         status: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
   }
@@ -47,21 +48,25 @@ export class UsersService {
 
   async createUser(data: {
     email: string;
-    phone: string;
-    passwordHash: string;
+    phone?: string | null;
+    passwordHash?: string | null;
     fullName: string;
     status?: AccountStatus;
     isVerified?: boolean;
+    oauthProvider?: string;
+    oauthProviderId?: string;
   }) {
     try {
       return await this.prisma.user.create({
         data: {
           email: data.email,
-          phone: data.phone,
-          passwordHash: data.passwordHash,
+          phone: data.phone ?? null,
+          passwordHash: data.passwordHash ?? null,
           fullName: data.fullName,
           status: data.status ?? 'ACTIVE',
           isVerified: data.isVerified ?? true,
+          oauthProvider: data.oauthProvider,
+          oauthProviderId: data.oauthProviderId,
         },
         select: safeUserSelect,
       });
@@ -69,6 +74,33 @@ export class UsersService {
       this.throwIfUniqueConstraint(error);
       throw error;
     }
+  }
+
+  async createOAuthUser(data: {
+    email: string;
+    fullName: string;
+    oauthProvider: string;
+    oauthProviderId: string;
+  }) {
+    return this.createUser({
+      ...data,
+      phone: null,
+      passwordHash: null,
+      status: 'ACTIVE',
+      isVerified: true,
+    });
+  }
+
+  async linkOAuthProvider(userId: string, provider: string, providerId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        oauthProvider: provider,
+        oauthProviderId: providerId,
+        isVerified: true,
+      },
+      select: safeUserSelect,
+    });
   }
 
   async updateUser(

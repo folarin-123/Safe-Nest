@@ -77,6 +77,29 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
           throw new Error('FRONTEND_URL must be set in production.');
         }
 
+        // APP_BASE_URL is used to construct password-reset links.
+        if (typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
+          throw new Error('APP_BASE_URL must be set (e.g. https://myapp.com).');
+        }
+        try {
+          new URL(config.APP_BASE_URL as string);
+        } catch {
+          throw new Error('APP_BASE_URL must be a valid URL.');
+        }
+
+        for (const variable of [
+          'GOOGLE_CLIENT_ID',
+          'GOOGLE_CLIENT_SECRET',
+          'GOOGLE_CALLBACK_URL',
+          'FACEBOOK_APP_ID',
+          'FACEBOOK_APP_SECRET',
+          'FACEBOOK_CALLBACK_URL',
+        ]) {
+          if (typeof config[variable] !== 'string' || !config[variable].trim()) {
+            throw new Error(`${variable} must be set.`);
+          }
+        }
+
         return config;
       },
     }),

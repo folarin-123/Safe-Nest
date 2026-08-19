@@ -3,7 +3,7 @@ import { GoalStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
 import { buildGoalPlan, buildGoalResponse, calculateGoalHealthScore, calculateRequiredContribution } from '../goals/goals.utils';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ContributionsService {
@@ -30,9 +30,9 @@ export class ContributionsService {
 
         const goal = await tx.goal.findUniqueOrThrow({ where: { id: goalId } });
         const plan = buildGoalPlan({ targetAmount: goal.targetAmount, currentAmount: goal.currentAmount, deadline: goal.deadline, contributionFrequency: goal.contributionFrequency, createdAt: goal.createdAt });
-        const health = calculateGoalHealthScore(plan, goal.targetAmount);
+        const health = calculateGoalHealthScore(plan, goal.targetAmount.toNumber());
         const status = plan.status === 'ACHIEVED' ? GoalStatus.ACHIEVED : health.status as GoalStatus;
-        const requiredContribution = status === GoalStatus.ACHIEVED ? 0 : calculateRequiredContribution(goal.targetAmount, goal.currentAmount, goal.deadline, goal.contributionFrequency);
+        const requiredContribution = status === GoalStatus.ACHIEVED ? 0 : calculateRequiredContribution(goal.targetAmount.toNumber(), goal.currentAmount.toNumber(), goal.deadline, goal.contributionFrequency);
 
         const contribution = await tx.contribution.create({
           data: { goalId, userId, amount, sourceType: dto.trackingType, trackingType: dto.trackingType, contributionDate: new Date(dto.contributionDate), externalReference: dto.externalReference ?? null },
@@ -54,29 +54,26 @@ export class ContributionsService {
     }
   }
 
-async findAllForGoal(goalId: string, userId: string, paginationDto: PaginationDto) {
-    
+  async findAllForGoal(goalId: string, userId: string, paginationDto: PaginationDto) {
     const { page = 1, limit = 10 } = paginationDto;
-    
     const skip = (page - 1) * limit;
 
     const goal = await this.prisma.goal.findFirst({ where: { id: goalId, userId }, select: { id: true } });
     if (!goal) throw new NotFoundException('Goal not found');
 
-    
     const [contributions, total] = await Promise.all([
-      this.prisma.contribution.findMany({ 
-        where: { goalId }, 
+      this.prisma.contribution.findMany({
+        where: { goalId },
         orderBy: { contributionDate: 'desc' },
         skip,
-        take: limit
+        take: limit,
       }),
-      this.prisma.contribution.count({ where: { goalId } })
+      this.prisma.contribution.count({ where: { goalId } }),
     ]);
 
-    const data = contributions.map((contribution) => ({ 
-      ...contribution, 
-      amount: contribution.amount.toFixed(2) 
+    const data = contributions.map((contribution) => ({
+      ...contribution,
+      amount: contribution.amount.toFixed(2),
     }));
 
     return {
@@ -85,8 +82,8 @@ async findAllForGoal(goalId: string, userId: string, paginationDto: PaginationDt
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 }

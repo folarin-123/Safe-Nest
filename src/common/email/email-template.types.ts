@@ -8,11 +8,17 @@ export interface ReminderTemplateData {
   goals: Array<{ name: string; requiredAmount: string }>;
 }
 
-export type EmailTemplateName = 'welcome' | 'reminder';
+export interface ResetPasswordTemplateData {
+  fullName: string;
+  resetUrl: string;
+}
+
+export type EmailTemplateName = 'welcome' | 'reminder' | 'reset-password';
 
 export type EmailTemplateDataMap = {
   welcome: WelcomeTemplateData;
   reminder: ReminderTemplateData;
+  'reset-password': ResetPasswordTemplateData;
 };
 
 export const EMAIL_TEMPLATE_SUBJECTS: {
@@ -20,4 +26,5 @@ export const EMAIL_TEMPLATE_SUBJECTS: {
 } = {
   welcome: 'Welcome to SafeNest',
   reminder: () => 'Your SafeNest savings reminder',
+  'reset-password': 'Reset your SafeNest password',
 };

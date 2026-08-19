@@ -1,9 +1,10 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
-
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -29,5 +30,38 @@ export class AuthController {
   @Get('me')
   async getProfile(@CurrentUser() user: any) {
     return user;
+  }
+
+  /**
+   * POST /api/v1/auth/forgot-password
+   * Accepts an email and sends a reset link if the user exists.
+   * Always returns a generic success message to prevent email enumeration.
+   * Rate limited to 3 requests per 10 minutes.
+   */
+  @Throttle(3, 600)
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return {
+      message:
+        'If an account with that email exists, a password reset link has been sent.',
+    };
+  }
+
+  /**
+   * POST /api/v1/auth/reset-password/:token
+   * Validates the raw token, updates the password, and marks the token as used.
+   */
+  @Post('reset-password/:token')
+  async resetPassword(
+    @Param('token') token: string,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    await this.authService.resetPassword(
+      token,
+      dto.newPassword,
+      dto.confirmPassword,
+    );
+    return { message: 'Your password has been reset successfully. You can now log in.' };
   }
 }

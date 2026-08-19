@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Frequency, Prisma } from '@prisma/client';
 import { UpsertFinancialProfileDto } from './dto/update-financial-profile.dto';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class FinancialProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   async getProfile(userId: string) {
     const profile = await this.prisma.userFinancialProfile.findUnique({ where: { userId } });
@@ -14,6 +18,7 @@ export class FinancialProfileService {
   }
 
   async createOrUpdate(userId: string, dto: UpsertFinancialProfileDto) {
+    const existing = await this.prisma.userFinancialProfile.findUnique({ where: { userId } });
     const payload = {
       incomeAmount: dto.monthlyIncome,
       incomeFrequency: dto.incomeFrequency
@@ -30,6 +35,19 @@ export class FinancialProfileService {
       update: payload,
       create: { userId, ...payload },
     });
+
+    if (!existing) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { createdAt: true },
+      });
+      void this.analyticsService.trackEvent('onboarding_completed', {
+        time_to_complete: user
+          ? Math.max(0, Math.round((Date.now() - user.createdAt.getTime()) / 1000))
+          : null,
+        skipped_steps: false,
+      }, userId);
+    }
     return this.serialize(profile);
   }
 
