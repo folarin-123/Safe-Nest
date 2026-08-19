@@ -1,12 +1,16 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationType } from '@prisma/client';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   async send(
     userId: string,
@@ -17,7 +21,7 @@ export class NotificationsService {
   ) {
     this.logger.log(`Notification to user ${userId}: [${type}] ${message}`);
 
-    return this.prisma.notificationLog.create({
+    const notification = await this.prisma.notificationLog.create({
       data: {
         userId,
         goalId: goalId ?? null,
@@ -27,6 +31,17 @@ export class NotificationsService {
         scheduledFor: scheduledFor ?? null,
       },
     });
+
+    if (type === NotificationType.ALERT || type === 'ALERT') {
+      void this.analyticsService.trackEvent('alert_triggered', {
+        alert_type: type,
+        severity_level: null,
+        location_id: null,
+        timestamp: new Date().toISOString(),
+      }, userId);
+    }
+
+    return notification;
   }
 
   async findAllForUser(userId: string) {

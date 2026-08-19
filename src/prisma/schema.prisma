@@ -53,10 +53,12 @@ enum GoalCategoryType {
 }
 
 model User {
-  id           String        @id @default(uuid()) @db.Uuid
-  email        String        @unique @db.VarChar(255)
-  phone        String        @unique @db.VarChar(20)
-  passwordHash String        @map("password_hash") @db.VarChar(255)
+  id           String  @id @default(uuid()) @db.Uuid
+  email        String  @unique @db.VarChar(255)
+  // Nullable: OAuth users don't have a phone number at registration
+  phone        String? @unique @db.VarChar(20)
+  // Nullable: OAuth users have no password
+  passwordHash String? @map("password_hash") @db.VarChar(255)
 
   fullName  String  @map("full_name") @db.VarChar(200)
   firstName String? @map("first_name") @db.VarChar(100)
@@ -65,6 +67,10 @@ model User {
   status       AccountStatus @default(PENDING_VERIFICATION)
   isVerified   Boolean       @default(false) @map("is_verified")
   mfaEnabled   Boolean       @default(false) @map("mfa_enabled")
+
+  // OAuth provider fields
+  oauthProvider   String? @map("oauth_provider")    @db.VarChar(20)
+  oauthProviderId String? @map("oauth_provider_id") @db.VarChar(255)
 
   verificationCode    String?   @map("verification_code") @db.VarChar(10)
   verificationExpires DateTime? @map("verification_expires") @db.Timestamptz(6)
@@ -80,10 +86,26 @@ model User {
   manualTxns       ManualTransaction[]
   notificationLogs NotificationLog[]
   passwordResets   PasswordReset[]
+  analyticsEvents   AnalyticsEvent[]
 
   @@index([email])
   @@index([status])
+  @@index([oauthProvider, oauthProviderId])
   @@map("users")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventName String   @map("event_name") @db.VarChar(80)
+  userId    String?  @map("user_id") @db.Uuid
+  properties Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventName, createdAt])
+  @@index([userId, createdAt])
+  @@map("analytics_events")
 }
 
 model UserSettings {

@@ -1,7 +1,7 @@
 export interface SafeUser {
   id: string;
   email: string;
-  phone: string;
+  phone: string | null;
   fullName: string;
   createdAt: Date;
 }

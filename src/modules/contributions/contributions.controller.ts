@@ -4,10 +4,14 @@ import { CreateContributionDto } from './dto/create-contribution.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Controller('goals/:goalId/contributions')
 export class ContributionsController {
-  constructor(private readonly contributionsService: ContributionsService) {}
+  constructor(
+    private readonly contributionsService: ContributionsService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   @Get('health')
   health() {
@@ -21,7 +25,9 @@ export class ContributionsController {
     @Param('goalId') goalId: string,
     @Body() dto: CreateContributionDto,
   ) {
-    return this.contributionsService.create(goalId, user.id, dto);
+    const result = await this.contributionsService.create(goalId, user.id, dto);
+    this.analyticsService.trackCoreFeature(user.id, 'contributions', 'create');
+    return result;
   }
 
   @UseGuards(JwtAuthGuard)
@@ -31,6 +37,8 @@ export class ContributionsController {
     @Param('goalId') goalId: string,
     @Query() paginationDto: PaginationDto,
   ) {
-    return this.contributionsService.findAllForGoal(goalId, user.id, paginationDto);
+    const result = await this.contributionsService.findAllForGoal(goalId, user.id, paginationDto);
+    this.analyticsService.trackCoreFeature(user.id, 'contributions', 'open');
+    return result;
   }
 }

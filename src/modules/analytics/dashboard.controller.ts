@@ -11,6 +11,8 @@ export class DashboardController {
   @UseGuards(JwtAuthGuard)
   @Get('summary')
   async getSummary(@CurrentUser() user: any) {
-    return this.analyticsService.getDashboardSummary(user.id);
+    const result = await this.analyticsService.getDashboardSummary(user.id);
+    this.analyticsService.trackCoreFeature(user.id, 'dashboard', 'open');
+    return result;
   }
 }

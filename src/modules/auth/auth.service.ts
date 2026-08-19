@@ -4,6 +4,7 @@ import {
   ConflictException,
   Logger,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -15,9 +16,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { AuthResult, SafeUser } from './auth.types';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 const SALT_ROUNDS = 10;
 const RESET_TOKEN_EXPIRY_MINUTES = 15;
+
+export interface OAuthLoginInput {
+  provider: 'google' | 'facebook';
+  providerId: string;
+  email: string;
+  fullName: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -29,12 +38,13 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   private toSafeUser(user: {
     id: string;
     email: string;
-    phone: string;
+    phone: string | null;
     fullName: string;
     createdAt?: Date;
   }): SafeUser {
@@ -82,6 +92,12 @@ export class AuthService {
       status: 'ACTIVE',
     });
 
+    void this.analyticsService.trackEvent('user_signed_up', {
+      signing_method: 'Email',
+      user_role: 'user',
+      timestamp: new Date().toISOString(),
+    }, user.id);
+
     void this.sendWelcomeEmail(user.email, user.fullName).catch((error: unknown) => {
       this.logger.warn(
         `Welcome email could not be sent: ${error instanceof Error ? error.message : String(error)}`,
@@ -100,7 +116,7 @@ export class AuthService {
   }
 
   private async sendWelcomeEmail(email: string, fullName: string) {
-    return this.emailService.sendTemplate(email, 'welcome', { fullName } as any);
+    return this.emailService.sendTemplate(email, 'welcome', { fullName });
   }
 
   // ── Login ──────────────────────────────────────────────────────────────────
@@ -116,10 +132,9 @@ export class AuthService {
       throw new UnauthorizedException('Account is not active');
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = user.passwordHash
+      ? await bcrypt.compare(dto.password, user.passwordHash)
+      : false;
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
@@ -236,5 +251,71 @@ export class AuthService {
         data: { used: true },
       }),
     ]);
+  }
+
+  // ── OAuth Login (Google / Facebook) ────────────────────────────────────────
+
+  async handleOAuthLogin(input: OAuthLoginInput): Promise<AuthResult> {
+    const { provider, providerId, email, fullName } = input;
+
+    if (!email) {
+      throw new InternalServerErrorException(
+        `${provider} did not return an email address. Make sure the email scope is enabled.`,
+      );
+    }
+
+    // Look up existing user by email — handles account-linking automatically.
+    let user: Awaited<ReturnType<UsersService['createOAuthUser']>> | null =
+      await this.usersService.findByEmail(email);
+
+    if (user) {
+      if (user.status !== 'ACTIVE') {
+        throw new UnauthorizedException('Account is not active');
+      }
+
+      // ── Account linking ─────────────────────────────────────────────────
+      // The user already exists (email/password or another OAuth provider).
+      // Link the new provider without touching their password.
+      await this.usersService.linkOAuthProvider(user.id, provider, providerId);
+    } else {
+      // ── New OAuth user ──────────────────────────────────────────────────
+      user = await this.usersService.createOAuthUser({
+        email,
+        fullName,
+        oauthProvider: provider,
+        oauthProviderId: providerId,
+      });
+
+      void this.analyticsService.trackEvent('user_signed_up', {
+        signing_method: provider === 'google' ? 'Google' : 'Facebook',
+        user_role: 'user',
+        timestamp: new Date().toISOString(),
+      }, user.id);
+
+      // Welcome email — fire-and-forget.
+      void this.sendWelcomeEmail(email, fullName).catch((err: unknown) =>
+        this.logger.warn(
+          `Welcome email failed for OAuth user ${email}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      );
+    }
+
+    if (!user) {
+      throw new InternalServerErrorException('Unable to complete OAuth login');
+    }
+
+    await this.usersService.markLastLogin(user.id);
+
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+    });
+
+    return {
+      user: this.toSafeUser(user),
+      accessToken,
+    };
   }
 }

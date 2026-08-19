@@ -87,6 +87,19 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
           throw new Error('APP_BASE_URL must be a valid URL.');
         }
 
+        for (const variable of [
+          'GOOGLE_CLIENT_ID',
+          'GOOGLE_CLIENT_SECRET',
+          'GOOGLE_CALLBACK_URL',
+          'FACEBOOK_APP_ID',
+          'FACEBOOK_APP_SECRET',
+          'FACEBOOK_CALLBACK_URL',
+        ]) {
+          if (typeof config[variable] !== 'string' || !config[variable].trim()) {
+            throw new Error(`${variable} must be set.`);
+          }
+        }
+
         return config;
       },
     }),
