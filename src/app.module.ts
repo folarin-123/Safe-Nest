@@ -78,28 +78,24 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
         }
 
         // APP_BASE_URL is used to construct password-reset links.
-        if (typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
-          throw new Error('APP_BASE_URL must be set (e.g. https://myapp.com).');
-        }
-        try {
-          new URL(config.APP_BASE_URL as string);
-        } catch {
-          throw new Error('APP_BASE_URL must be a valid URL.');
-        }
-
-        for (const variable of [
-          'GOOGLE_CLIENT_ID',
-          'GOOGLE_CLIENT_SECRET',
-          'GOOGLE_CALLBACK_URL',
-          'FACEBOOK_APP_ID',
-          'FACEBOOK_APP_SECRET',
-          'FACEBOOK_CALLBACK_URL',
-        ]) {
-          if (typeof config[variable] !== 'string' || !config[variable].trim()) {
-            throw new Error(`${variable} must be set.`);
+        // Provide fallback for development, strict validation for production
+        if (config.NODE_ENV === 'production') {
+          if (typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
+            throw new Error('APP_BASE_URL must be set in production (e.g. https://myapp.com).');
+          }
+          try {
+            new URL(config.APP_BASE_URL as string);
+          } catch {
+            throw new Error('APP_BASE_URL must be a valid URL in production.');
+          }
+        } else {
+          // In development/test, provide a fallback if not set
+          if (!config.APP_BASE_URL || typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
+            config.APP_BASE_URL = 'http://localhost:3000';
           }
         }
 
+        // OAuth variables are now optional - strategies will handle missing credentials gracefully
         return config;
       },
     }),

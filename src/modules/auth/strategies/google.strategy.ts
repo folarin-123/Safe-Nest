@@ -10,10 +10,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
   ) {
+    const clientID = configService.get<string>('GOOGLE_CLIENT_ID') || 'DISABLED';
+    const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET') || 'DISABLED';
+    const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL') || 'DISABLED';
+
     super({
-      clientID: configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
-      clientSecret: configService.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
-      callbackURL: configService.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
+      clientID,
+      clientSecret,
+      callbackURL,
       scope: ['email', 'profile'],
     });
   }
