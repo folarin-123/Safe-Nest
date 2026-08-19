@@ -18,8 +18,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: (config: Record<string, unknown>) => {
+        // ──────────────────────────────────────────────
+        // 1. JWT (required)
+        // ──────────────────────────────────────────────
         const jwtSecret = config.JWT_SECRET;
-
         if (typeof jwtSecret !== 'string' || jwtSecret.trim().length < 32) {
           throw new Error(
             'JWT_SECRET must be set and contain at least 32 characters.',
@@ -35,26 +37,32 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
           );
         }
 
+        // ──────────────────────────────────────────────
+        // 2. Database (required)
+        // ──────────────────────────────────────────────
         if (typeof config.DATABASE_URL !== 'string' || !config.DATABASE_URL) {
           throw new Error('DATABASE_URL must be set.');
         }
 
+        // ──────────────────────────────────────────────
+        // 3. Email / SMTP (required – you need this)
+        // ──────────────────────────────────────────────
         if (typeof config.SMTP_HOST !== 'string' || !config.SMTP_HOST.trim()) {
           throw new Error('SMTP_HOST must be set.');
         }
-
         if (typeof config.SMTP_PORT !== 'string' || !config.SMTP_PORT.trim()) {
           throw new Error('SMTP_PORT must be set.');
         }
-
         if (typeof config.SMTP_USER !== 'string' || !config.SMTP_USER.trim()) {
           throw new Error('SMTP_USER must be set.');
         }
-
         if (typeof config.SMTP_PASS !== 'string' || !config.SMTP_PASS.trim()) {
           throw new Error('SMTP_PASS must be set.');
         }
 
+        // ──────────────────────────────────────────────
+        // 4. Frontend URL (for CORS, optional in dev but required in prod)
+        // ──────────────────────────────────────────────
         if (typeof config.FRONTEND_URL === 'string' && config.FRONTEND_URL.trim()) {
           config.FRONTEND_URL.split(',').forEach((entry) => {
             const value = entry.trim();
@@ -77,8 +85,9 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
           throw new Error('FRONTEND_URL must be set in production.');
         }
 
-        // APP_BASE_URL is used to construct password-reset links.
-        // Provide fallback for development, strict validation for production
+        // ──────────────────────────────────────────────
+        // 5. App base URL (for password reset links)
+        // ──────────────────────────────────────────────
         if (config.NODE_ENV === 'production') {
           if (typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
             throw new Error('APP_BASE_URL must be set in production (e.g. https://myapp.com).');
@@ -89,13 +98,19 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
             throw new Error('APP_BASE_URL must be a valid URL in production.');
           }
         } else {
-          // In development/test, provide a fallback if not set
+          // In development, fallback to localhost if not set
           if (!config.APP_BASE_URL || typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
             config.APP_BASE_URL = 'http://localhost:3000';
           }
         }
 
-        // OAuth variables are now optional - strategies will handle missing credentials gracefully
+        // ──────────────────────────────────────────────
+        // 6. OAuth (Google / Facebook) – COMPLETELY OPTIONAL
+        //    No checks here – strategies will handle missing values
+        //    gracefully (they fall back to 'DISABLED').
+        // ──────────────────────────────────────────────
+        // (Nothing to validate – they're not required)
+
         return config;
       },
     }),
