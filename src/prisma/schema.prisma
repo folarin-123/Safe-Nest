@@ -7,6 +7,143 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                  String                @id @default(uuid()) @db.Uuid
+  email               String                @unique @db.VarChar(255)
+  phone               String                @unique @db.VarChar(20)
+  passwordHash        String                @map("password_hash") @db.VarChar(255)
+  fullName            String                @map("full_name") @db.VarChar(200)
+  firstName           String?               @map("first_name") @db.VarChar(100)
+  lastName            String?               @map("last_name") @db.VarChar(100)
+  status              AccountStatus         @default(PENDING_VERIFICATION)
+  isVerified          Boolean               @default(false) @map("is_verified")
+  mfaEnabled          Boolean               @default(false) @map("mfa_enabled")
+  lastLogin           DateTime?             @map("last_login") @db.Timestamptz(6)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  verificationCode    String?               @map("verification_code") @db.VarChar(10)
+  verificationExpires DateTime?             @map("verification_expires") @db.Timestamptz(6)
+  contributions       Contribution[]
+  goals               Goal[]
+  manualTxns          ManualTransaction[]
+  notificationLogs    NotificationLog[]
+  financialProfile    UserFinancialProfile?
+  settings            UserSettings?
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+model UserSettings {
+  id           String          @id @default(uuid()) @db.Uuid
+  userId       String          @unique @map("user_id") @db.Uuid
+  theme        ThemePreference @default(LIGHT)
+  pushEnabled  Boolean         @default(true) @map("push_enabled")
+  emailEnabled Boolean         @default(true) @map("email_enabled")
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model UserFinancialProfile {
+  id                  String     @id @default(uuid()) @db.Uuid
+  userId              String     @unique @map("user_id") @db.Uuid
+  incomeAmount        Decimal?   @map("income_amount") @db.Decimal(12, 2)
+  incomeFrequency     Frequency? @map("income_frequency")
+  fixedExpenses       Json?      @map("fixed_expenses")
+  variableExpenses    Json?      @map("variable_expenses")
+  existingSavings     Decimal?   @default(0) @map("existing_savings") @db.Decimal(12, 2)
+  existingCommitments Json?      @map("existing_commitments")
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_financial_profiles")
+}
+
+model Goal {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  userId                String                  @map("user_id") @db.Uuid
+  category              GoalCategoryType?       @map("category")
+  goalName              String                  @map("goal_name") @db.VarChar(255)
+  description           String?
+  targetAmount          Decimal                 @map("target_amount") @db.Decimal(12, 2)
+  currentAmount         Decimal                 @default(0) @map("current_amount") @db.Decimal(12, 2)
+  deadline              DateTime                @db.Date
+  contributionFrequency Frequency               @map("contribution_frequency")
+  preferredContribution Decimal?                @map("preferred_contribution") @db.Decimal(12, 2)
+  requiredContribution  Decimal?                @map("required_contribution") @db.Decimal(12, 2)
+  status                GoalStatus              @default(ACTIVE)
+  goalHealthScore       Float?                  @map("goal_health_score")
+  priority              Int?                    @default(0) @map("priority")
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  contributions         Contribution[]
+  adjustments           GoalAdjustmentHistory[]
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationLogs      NotificationLog[]
+
+  @@index([userId, status])
+  @@index([deadline])
+  @@map("goals")
+}
+
+model Contribution {
+  id                String   @id @default(uuid()) @db.Uuid
+  goalId            String   @map("goal_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  sourceType        String   @map("type") @db.VarChar(20)
+  trackingType      String?  @map("tracking_type") @db.VarChar(50)
+  contributionDate  DateTime @default(now()) @map("date") @db.Timestamptz(6)
+  externalReference String?  @unique @map("external_reference") @db.VarChar(255)
+  goal              Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, contributionDate(sort: Desc)])
+  @@index([userId])
+  @@map("contributions")
+}
+
+model ManualTransaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("manual_transactions")
+}
+
+model NotificationLog {
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  goalId       String?          @map("goal_id") @db.Uuid
+  message      String
+  type         NotificationType
+  isRead       Boolean          @default(false) @map("is_read")
+  scheduledFor DateTime?        @map("scheduled_for") @db.Timestamptz(6)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  goal         Goal?            @relation(fields: [goalId], references: [id])
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, type, createdAt(sort: Desc)])
+  @@map("notification_logs")
+}
+
+model GoalAdjustmentHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  goalId    String   @map("goal_id") @db.Uuid
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@map("goal_adjustment_history")
+}
+
 enum AccountStatus {
   PENDING_VERIFICATION
   ACTIVE
@@ -50,205 +187,4 @@ enum GoalCategoryType {
   VACATION
   CAPITAL
   HOME
-}
-
-model User {
-  id           String  @id @default(uuid()) @db.Uuid
-  email        String  @unique @db.VarChar(255)
-  // Nullable: OAuth users don't have a phone number at registration
-  phone        String? @unique @db.VarChar(20)
-  // Nullable: OAuth users have no password
-  passwordHash String? @map("password_hash") @db.VarChar(255)
-
-  fullName  String  @map("full_name") @db.VarChar(200)
-  firstName String? @map("first_name") @db.VarChar(100)
-  lastName  String? @map("last_name") @db.VarChar(100)
-
-  status       AccountStatus @default(PENDING_VERIFICATION)
-  isVerified   Boolean       @default(false) @map("is_verified")
-  mfaEnabled   Boolean       @default(false) @map("mfa_enabled")
-
-  // OAuth provider fields
-  oauthProvider   String? @map("oauth_provider")    @db.VarChar(20)
-  oauthProviderId String? @map("oauth_provider_id") @db.VarChar(255)
-
-  verificationCode    String?   @map("verification_code") @db.VarChar(10)
-  verificationExpires DateTime? @map("verification_expires") @db.Timestamptz(6)
-
-  lastLogin DateTime? @map("last_login") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  financialProfile UserFinancialProfile?
-  settings         UserSettings?
-  goals            Goal[]
-  contributions    Contribution[]
-  manualTxns       ManualTransaction[]
-  notificationLogs NotificationLog[]
-  passwordResets   PasswordReset[]
-  analyticsEvents   AnalyticsEvent[]
-
-  @@index([email])
-  @@index([status])
-  @@index([oauthProvider, oauthProviderId])
-  @@map("users")
-}
-
-model AnalyticsEvent {
-  id        String   @id @default(uuid()) @db.Uuid
-  eventName String   @map("event_name") @db.VarChar(80)
-  userId    String?  @map("user_id") @db.Uuid
-  properties Json
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([eventName, createdAt])
-  @@index([userId, createdAt])
-  @@map("analytics_events")
-}
-
-model UserSettings {
-  id           String          @id @default(uuid()) @db.Uuid
-  userId       String          @unique @map("user_id") @db.Uuid
-  theme        ThemePreference @default(LIGHT)
-  pushEnabled  Boolean         @default(true) @map("push_enabled")
-  emailEnabled Boolean         @default(true) @map("email_enabled")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_settings")
-}
-
-model UserFinancialProfile {
-  id     String @id @default(uuid()) @db.Uuid
-  userId String @unique @map("user_id") @db.Uuid
-
-  incomeAmount    Decimal?   @map("income_amount") @db.Decimal(12, 2)
-  incomeFrequency Frequency? @map("income_frequency")
-
-  fixedExpenses       Json?    @map("fixed_expenses")
-  variableExpenses    Json?    @map("variable_expenses")
-  existingSavings     Decimal? @default(0) @map("existing_savings") @db.Decimal(12, 2)
-  existingCommitments Json?    @map("existing_commitments")
-
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_financial_profiles")
-}
-
-model Goal {
-  id     String @id @default(uuid()) @db.Uuid
-  userId String @map("user_id") @db.Uuid
-
-  category GoalCategoryType? @map("category")
-
-  goalName    String  @map("goal_name") @db.VarChar(255)
-  description String? @db.Text
-
-  targetAmount  Decimal @map("target_amount") @db.Decimal(12, 2)
-  currentAmount Decimal @default(0) @map("current_amount") @db.Decimal(12, 2)
-
-  deadline              DateTime  @db.Date
-  contributionFrequency Frequency @map("contribution_frequency")
-
-  preferredContribution Decimal? @map("preferred_contribution") @db.Decimal(12, 2)
-  requiredContribution  Decimal? @map("required_contribution") @db.Decimal(12, 2)
-
-  status GoalStatus @default(ACTIVE)
-
-  goalHealthScore Float? @map("goal_health_score")
-  priority        Int?   @default(0) @map("priority")
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contributions    Contribution[]
-  adjustments      GoalAdjustmentHistory[]
-  notificationLogs NotificationLog[]
-
-  @@index([userId, status])
-  @@index([deadline])
-  @@map("goals")
-}
-
-model Contribution {
-  id         String   @id @default(uuid()) @db.Uuid
-  goalId     String   @map("goal_id") @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  amount     Decimal  @db.Decimal(12, 2)
-  sourceType String   @map("type") @db.VarChar(20)
-
-  trackingType String? @map("tracking_type") @db.VarChar(50)
-
-  contributionDate  DateTime @default(now()) @map("date") @db.Timestamptz(6)
-  externalReference String?  @unique @map("external_reference") @db.VarChar(255)
-
-  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([goalId, contributionDate(sort: Desc)])
-  @@index([userId])
-  @@map("contributions")
-}
-
-model ManualTransaction {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  amount    Decimal  @db.Decimal(12, 2)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("manual_transactions")
-}
-
-model NotificationLog {
-  id       String           @id @default(uuid()) @db.Uuid
-  userId   String           @map("user_id") @db.Uuid
-  goalId   String?          @map("goal_id") @db.Uuid
-  message  String
-  type     NotificationType
-  isRead   Boolean          @default(false) @map("is_read")
-
-  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(6)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goal Goal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
-
-  @@index([userId, isRead])
-  @@index([userId, type, createdAt(sort: Desc)])
-  @@map("notification_logs")
-}
-
-model GoalAdjustmentHistory {
-  id        String   @id @default(uuid()) @db.Uuid
-  goalId    String   @map("goal_id") @db.Uuid
-  reason    String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
-
-  @@index([goalId])
-  @@map("goal_adjustment_history")
-}
-
-model PasswordReset {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  tokenHash String   @map("token_hash") @db.VarChar(255)
-  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("password_resets")
 }
