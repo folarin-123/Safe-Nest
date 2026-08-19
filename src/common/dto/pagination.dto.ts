@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-
-=======
 import { IsOptional, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -17,4 +14,3 @@ export class PaginationDto {
   @Min(1)
   limit?: number = 10;
 }
->>>>>>> origin/main

@@ -77,6 +77,16 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
           throw new Error('FRONTEND_URL must be set in production.');
         }
 
+        // APP_BASE_URL is used to construct password-reset links.
+        if (typeof config.APP_BASE_URL !== 'string' || !config.APP_BASE_URL.trim()) {
+          throw new Error('APP_BASE_URL must be set (e.g. https://myapp.com).');
+        }
+        try {
+          new URL(config.APP_BASE_URL as string);
+        } catch {
+          throw new Error('APP_BASE_URL must be a valid URL.');
+        }
+
         return config;
       },
     }),

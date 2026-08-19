@@ -7,11 +7,13 @@ import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailModule } from '../../common/email/email.module';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
   imports: [
     ConfigModule,
     EmailModule,
+    PrismaModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
