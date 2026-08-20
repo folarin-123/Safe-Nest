@@ -4,10 +4,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
-import * as nodemailer from 'nodemailer';
 import * as path from 'path';
-import type { Transporter } from 'nodemailer';
 import {
   EMAIL_TEMPLATE_SUBJECTS,
   EmailTemplateDataMap,
@@ -17,36 +16,15 @@ import {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly transporter: Transporter;
   private readonly fromAddress: string;
   private readonly templatesDir = path.join(__dirname, 'templates');
 
   constructor(private readonly configService: ConfigService) {
-    const host = configService.getOrThrow<string>('SMTP_HOST');
-    const port = Number(configService.getOrThrow<string>('SMTP_PORT'));
-    const user = configService.getOrThrow<string>('SMTP_USER');
-    const pass = configService.getOrThrow<string>('SMTP_PASS');
+    const apiKey = configService.getOrThrow<string>('SENDGRID_API_KEY');
+    sgMail.setApiKey(apiKey);
 
     this.fromAddress =
-      configService.get<string>('EMAIL_FROM') ?? this.getDefaultFromAddress(host);
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: {
-        user,
-        pass,
-      },
-    });
-  }
-
-  private getDefaultFromAddress(host: string) {
-    try {
-      return `no-reply@${new URL(`https://${host}`).hostname}`;
-    } catch {
-      return 'no-reply@example.com';
-    }
+      configService.get<string>('EMAIL_FROM') ?? 'no-reply@example.com';
   }
 
   async renderTemplate<T extends EmailTemplateName>(
@@ -103,15 +81,25 @@ export class EmailService {
     html?: string;
   }) {
     try {
-      const result = await this.transporter.sendMail({
+      const msg = {
+        to: options.to,
         from: this.fromAddress,
-        ...options,
-      });
-
-      this.logger.log(`Email sent to ${options.to} (messageId=${result.messageId})`);
-      return result;
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+      };
+      await sgMail.send(msg);
+      this.logger.log(`Email sent to ${options.to}`);
+      return { messageId: 'sendgrid-web-api' };
     } catch (error) {
       this.logger.error('Unable to send email', error as Error);
+
+      // Safe error logging - check if error has response property
+      const errorObj = error as any;
+      if (errorObj.response) {
+        this.logger.error('SendGrid error details:', errorObj.response.body);
+      }
+
       throw new InternalServerErrorException('Unable to send email at this time.');
     }
   }
