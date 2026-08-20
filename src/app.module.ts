@@ -45,19 +45,20 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
         }
 
         // ──────────────────────────────────────────────
-        // 3. Email / SMTP (required – you need this)
+        // 3. Email (SendGrid Web API – required)
         // ──────────────────────────────────────────────
-        if (typeof config.SMTP_HOST !== 'string' || !config.SMTP_HOST.trim()) {
-          throw new Error('SMTP_HOST must be set.');
+        if (
+          typeof config.SENDGRID_API_KEY !== 'string' ||
+          !config.SENDGRID_API_KEY.trim()
+        ) {
+          throw new Error('SENDGRID_API_KEY must be set.');
         }
-        if (typeof config.SMTP_PORT !== 'string' || !config.SMTP_PORT.trim()) {
-          throw new Error('SMTP_PORT must be set.');
-        }
-        if (typeof config.SMTP_USER !== 'string' || !config.SMTP_USER.trim()) {
-          throw new Error('SMTP_USER must be set.');
-        }
-        if (typeof config.SMTP_PASS !== 'string' || !config.SMTP_PASS.trim()) {
-          throw new Error('SMTP_PASS must be set.');
+
+        if (
+          typeof config.EMAIL_FROM !== 'string' ||
+          !config.EMAIL_FROM.trim()
+        ) {
+          throw new Error('EMAIL_FROM must be set.');
         }
 
         // ──────────────────────────────────────────────
@@ -106,8 +107,6 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
         // ──────────────────────────────────────────────
         // 6. OAuth (Google / Facebook) – COMPLETELY OPTIONAL
-        //    No checks here – strategies will handle missing values
-        //    gracefully (they fall back to 'DISABLED').
         // ──────────────────────────────────────────────
         // (Nothing to validate – they're not required)
 
