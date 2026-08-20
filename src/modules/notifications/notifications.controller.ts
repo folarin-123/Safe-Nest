@@ -28,5 +28,9 @@ export class NotificationsController {
     this.analyticsService.trackCoreFeature(user.id, 'notifications', 'mark_read');
     return result;
   }
-
+@Post('trigger-reminders')
+async triggerReminders() {
+  const result = await this.remindersService.runReminderCheck();
+  return { message: 'Reminder check completed', result };
+}
 }
