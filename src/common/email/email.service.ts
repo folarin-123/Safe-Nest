@@ -4,7 +4,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import  sgMail from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
 import * as ejs from 'ejs';
 import * as path from 'path';
 import {
@@ -23,8 +23,7 @@ export class EmailService {
     const apiKey = configService.getOrThrow<string>('SENDGRID_API_KEY');
     sgMail.setApiKey(apiKey);
 
-    this.fromAddress =
-      configService.get<string>('EMAIL_FROM') ?? 'no-reply@example.com';
+    this.fromAddress = 'folarinsamuel133@gmail.com';
   }
 
   async renderTemplate<T extends EmailTemplateName>(
@@ -88,18 +87,16 @@ export class EmailService {
         text: options.text,
         html: options.html,
       };
+      this.logger.log(`Sending email from ${this.fromAddress} to ${options.to}`);
       await sgMail.send(msg);
       this.logger.log(`Email sent to ${options.to}`);
       return { messageId: 'sendgrid-web-api' };
     } catch (error) {
       this.logger.error('Unable to send email', error as Error);
-
-      // Safe error logging - check if error has response property
       const errorObj = error as any;
       if (errorObj.response) {
-        this.logger.error('SendGrid error details:', errorObj.response.body);
+        this.logger.error('SendGrid response body:', JSON.stringify(errorObj.response.body, null, 2));
       }
-
       throw new InternalServerErrorException('Unable to send email at this time.');
     }
   }
