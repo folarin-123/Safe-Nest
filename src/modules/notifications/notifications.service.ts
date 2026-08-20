@@ -2,6 +2,12 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationType } from '@prisma/client';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { EmailService } from '../../common/email/email.service';
+
+interface ReminderGoalSummary {
+  name: string;
+  requiredAmount: string;
+}
 
 @Injectable()
 export class NotificationsService {
@@ -10,6 +16,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly analyticsService: AnalyticsService,
+    private readonly emailService: EmailService,
   ) {}
 
   async send(
@@ -18,6 +25,9 @@ export class NotificationsService {
     message: string,
     goalId?: string,
     scheduledFor?: Date,
+    /** Optional pre-computed goal summaries — avoids re-querying goals when the
+     *  caller (e.g. RemindersService) already has them loaded. */
+    reminderGoals?: ReminderGoalSummary[],
   ) {
     this.logger.log(`Notification to user ${userId}: [${type}] ${message}`);
 
@@ -41,7 +51,67 @@ export class NotificationsService {
       }, userId);
     }
 
+    // Fire off the email in the background — a failed email must never break
+    // the notification log write above, which has already succeeded.
+    if (type === NotificationType.REMINDER || type === 'REMINDER') {
+      void this.sendReminderEmail(userId, reminderGoals).catch((error: unknown) => {
+        this.logger.warn(
+          `Reminder email could not be sent to user ${userId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    }
+
     return notification;
+  }
+
+  private async sendReminderEmail(
+    userId: string,
+    reminderGoals?: ReminderGoalSummary[],
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        fullName: true,
+        settings: { select: { emailEnabled: true } },
+      },
+    });
+
+    if (!user) return;
+
+    // Respect the user's email preference explicitly. Only skip if they have
+    // settings AND have explicitly turned email off — default (no settings
+    // row, or emailEnabled true) is to send.
+    if (user.settings && user.settings.emailEnabled === false) {
+      return;
+    }
+
+    const firstName = user.fullName?.trim().split(/\s+/)[0] || 'there';
+
+    const goals =
+      reminderGoals ??
+      (await this.getActiveGoalSummariesForUser(userId));
+
+    await this.emailService.sendTemplate(user.email, 'reminder', {
+      firstName,
+      goals,
+    });
+  }
+
+  private async getActiveGoalSummariesForUser(
+    userId: string,
+  ): Promise<ReminderGoalSummary[]> {
+    const goals = await this.prisma.goal.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { goalName: true, requiredContribution: true },
+    });
+
+    return goals.map((g) => ({
+      name: g.goalName,
+      requiredAmount: `₦${Number(g.requiredContribution ?? 0).toLocaleString()}`,
+    }));
   }
 
   async findAllForUser(userId: string) {

@@ -5,9 +5,15 @@ import { NotificationsService } from './notifications.service';
 import { RemindersService } from './reminders.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { EmailModule } from '../../common/email/email.module';
 
 @Module({
-  imports: [PrismaModule, ScheduleModule.forRoot(), AnalyticsModule],
+  imports: [
+    PrismaModule,
+    ScheduleModule.forRoot(),
+    AnalyticsModule,
+    EmailModule, 
+  ],
   controllers: [NotificationsController],
   providers: [NotificationsService, RemindersService],
   exports: [NotificationsService],

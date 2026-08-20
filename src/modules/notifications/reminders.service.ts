@@ -47,7 +47,7 @@ export class RemindersService {
 
   private async maybeSendReminder(user: {
     id: string;
-    firstName: string | null;
+    fullName: string;
     goals: { goalName: string; requiredContribution: any }[];
     settings: {
       id: string;
@@ -74,17 +74,24 @@ export class RemindersService {
       if (daysSince < 7) return false;
     }
 
-    const goalSummaries = user.goals
-      .map(
-        (g) =>
-          `${g.goalName}: ₦${Number(g.requiredContribution ?? 0).toLocaleString()} needed this period`,
-      )
+    const reminderGoals = user.goals.map((g) => ({
+      name: g.goalName,
+      requiredAmount: `₦${Number(g.requiredContribution ?? 0).toLocaleString()}`,
+    }));
+
+    const goalSummaries = reminderGoals
+      .map((g) => `${g.name}: ${g.requiredAmount} needed this period`)
       .join('; ');
+
+    const firstName = user.fullName?.trim().split(/\s+/)[0] || 'there';
 
     await this.notificationsService.send(
       user.id,
       'REMINDER',
-      `Hi ${user.firstName ?? 'there'}, here's your savings reminder — ${goalSummaries}.`,
+      `Hi ${firstName}, here's your savings reminder — ${goalSummaries}.`,
+      undefined,
+      undefined,
+      reminderGoals,
     );
 
     return true;
