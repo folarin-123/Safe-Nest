@@ -47,16 +47,16 @@ export class NotificationsController {
 
     try {
       await this.emailService.sendTemplate(
-        'sammykamsil01@example.com', // ← REPLACE with your email
+        'Boluwatifeb989@gmail.com',
         'reminder',
         {
-          firstName: 'Test',
+          firstName: 'Bolu',
           goals: sampleGoals,
         }
       );
       return { message: 'Test reminder email sent successfully using the template' };
     } catch (error) {
-      return { message: 'Failed to send test email', error: error.message };
+      return { message: 'Failed to send test email', error: error instanceof Error ? error.message : String(error) };
     }
   }
 }
