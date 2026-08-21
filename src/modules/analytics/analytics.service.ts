@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AnalyticsService {
@@ -14,7 +15,11 @@ export class AnalyticsService {
   ): Promise<void> {
     try {
       await this.prisma.analyticsEvent.create({
-        data: { eventName, userId: userId ?? null, properties },
+        data: {
+          eventName,
+          properties: properties as Prisma.InputJsonValue,
+          userId: userId ?? null,
+        },
       });
     } catch (error) {
       this.logger.warn(
