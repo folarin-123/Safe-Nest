@@ -1,131 +1,46 @@
-<<<<<<< HEAD
-Develop registration and login APIs.
-
-Registration (POST /auth/register) — validates input, checks for duplicate email/phone, hashes password with bcrypt, creates user, returns JWT
-Login (POST /auth/login) — validates input, checks credentials, blocks deactivated accounts, returns JWT, records last login
-Protected route (GET /auth/me) — verifies JWT via Passport strategy, returns current user
-Password hashing, JWT generation, input validation, error handling, controller/service separation, Prisma integration, env vars — all in place, all confirmed against your partner's actual schema and existing files
 
 
-Fully built (savings plan feature):
+SafeNest is a goal-based financial planning backend that acts as a financial accountability partner. It allows users to create structured savings plans, tracks their progress, and automates intelligent reminders to help them achieve major financial milestones.
 
-Create a goal - auto-calculates required contribution per period
-List all your goals
-View one goal in detail - includes contribution history + progress percentage
-Record a contribution - updates currentAmount, recalculates plan, auto-completes goal if target hit
-List contributions for a goal
-Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
+**Live API Base URL:** `https://safe-nest-de6h.onrender.com/api/v1`
 
+---
 
+## 🚀 Features
 
-## Notifications Module
+### 🔐 Authentication & User Management
+*   **Registration (`POST /auth/register`):** Validates input, checks for duplicate email/phone, hashes passwords with bcrypt, creates the user, and returns a JWT.
+*   **Login (`POST /auth/login`):** Validates credentials, blocks deactivated accounts, returns a JWT, and records the last login.
+*   **Protected Profile (`GET /auth/me`):** Verifies JWT via Passport strategy and returns the current user.
+*   **Robust Security:** Features password hashing, JWT generation, structured error handling, and environment variable configuration.
 
-Handles sending notifications to users and scheduling automated savings reminders.
+###  Goal-Based Savings Engine
+*   **Create a Goal:** Automatically calculates the required contribution per period based on target amount and deadline.
+*   **Goal Management:** List all user goals or view specific goals in detail, including full contribution history and real-time progress percentages.
+*   **Record Contributions:** Atomically updates the `currentAmount`, recalculates the remaining plan, and auto-completes the goal if the target is hit.
+*   **Data Isolation:** All financial routes are secured behind JWT authentication with strict ownership checks to prevent cross-user data access.
 
-### Features
-- Centralized notification service that respects user notification preferences
-  (email/push toggles from `UserSettings`)
-- All sent notifications are logged to the database for audit/history (`NotificationLog`)
-- Automated daily reminder job that checks users with active savings goals and
-  sends reminders based on each user's preferred frequency (daily/weekly/monthly)
-- Reminder logic prevents duplicate sends — a user won't be reminded again until
-  their chosen frequency interval has passed
-- Manual trigger endpoint for testing/verifying the reminder logic on demand
+###  Notifications & Reminders Module
+Handles scheduling and delivering automated savings reminders to keep users accountable.
+*   **Centralized Preferences:** Respects user notification toggles (email/push) from `UserSettings`.
+*   **Audit Logging:** All sent notifications are safely recorded in the `NotificationLog` database table.
+*   **Smart Automation:** A scheduled job runs daily at 9:00 AM, evaluating users with active goals and dispatching reminders based on their preferred frequency (daily/weekly/monthly).
+*   **Idempotent Logic:** Prevents duplicate sends; a user will not be reminded again until their chosen frequency interval has passed.
 
-### Endpoints
-| Method | Route                              | Auth required | Description                                      |
-|--------|-------------------------------------|---------------|---------------------------------------------------|
-| GET    | `/notifications/health`             | No            | Health check                                       |
-| GET    | `/notifications`                    | Yes (JWT)     | List the current user's notification history       |
-| POST   | `/notifications/trigger-reminders`  | No            | Manually runs the reminder check (for testing)      |
+---
 
-### Scheduled Job
-- Runs automatically every day at 9:00 AM
-- Evaluates all active users with at least one active goal
-- Sends a reminder summarizing required contributions per active goal
+##  HTTP API Routes
 
-### Known limitations
-- Actual delivery (email/SMS/push) is not yet integrated with a provider —
-  notifications are currently logged and recorded in the database only
-- Notifications are only triggered by the scheduled reminder job so far;
-  other events (e.g. goal completion, successful contribution) do not yet
-  send notifications
-- Not yet tested against a live database — logic is implemented and compiles
-  cleanly, but end-to-end execution is unverified
-=======
-Develop registration and login APIs.
+All routes are prefixed with `/api/v1` and require an `Authorization: Bearer <accessToken>` header. Successful responses utilize a standard envelope: `{ "success": true, "data": ..., "timestamp": "..." }`.
 
-Registration (POST /auth/register) — validates input, checks for duplicate email/phone, hashes password with bcrypt, creates user, returns JWT
-Login (POST /auth/login) — validates input, checks credentials, blocks deactivated accounts, returns JWT, records last login
-Protected route (GET /auth/me) — verifies JWT via Passport strategy, returns current user
-Password hashing, JWT generation, input validation, error handling, controller/service separation, Prisma integration, env vars — all in place, all confirmed against your partner's actual schema and existing files
-
-
-Fully built (savings plan feature):
-
-Create a goal - auto-calculates required contribution per period
-List all your goals
-View one goal in detail - includes contribution history + progress percentage
-Record a contribution - updates currentAmount, recalculates plan, auto-completes goal if target hit
-List contributions for a goal
-Everything behind JWT auth, ownership-checked (no cross-user access), atomic writes where it matters (the transaction in contributions)
-
-
-## HTTP API routes
-
-All routes are prefixed with `/api/v1` and require `Authorization: Bearer <accessToken>`.
-
-| Method | Route | Body | Purpose |
-|---|---|---|---|
-| POST | `/goals/simulate` | `{ "targetAmount": 100000, "currentAmount": 20000, "deadline": "2026-12-31", "frequency": "MONTHLY" }` | Calculate a plan without saving a goal. |
-| GET | `/goals/:id/progress` | — | Return current progress, required contribution, timeline, and on-track status. |
-| GET | `/goals/:id/health` | — | Calculate and persist the goal health score/status. |
-| POST | `/goals/:id/recovery-plan` | `{ "missedAmount": 5000 }` | Calculate the catch-up contribution needed after a missed amount. |
-| POST | `/goals/:goalId/contributions` | `{ "amount": 5000, "contributionDate": "2026-08-14", "trackingType": "MANUAL" }` | Atomically record a contribution and recalculate the goal. |
-| GET | `/goals/:goalId/contributions` | — | List a goal's contributions. |
-| GET | `/notifications` | — | List the current user's notifications. |
-| PATCH | `/notifications/:id/read` | — | Mark one notification as read. |
-
-`BANK_SYNC` contributions must include a unique `externalReference`; duplicate references return `409 Conflict`. Goal deadlines must be future calendar dates. Monetary request values accept no more than two decimal places.
-
-Successful responses use `{ "success": true, "data": ..., "timestamp": "..." }`. `POST /api/v1/auth/register` sends a welcome email only after creating a new user. Configure the SMTP variables in `.env` (see `.env.example`) to enable delivery; an email failure is logged and does not prevent account creation.
-
-### Database migration
-
-Apply committed migrations to a deployed database with:
-
-```bash
-npx prisma migrate deploy --schema=src/prisma/schema.prisma
-```
-
-
-
-
-## Notifications Module
-
-Handles sending notifications to users and scheduling automated savings reminders.
-
-### Features
-- Centralized notification service that respects user notification preferences
-  (email/push toggles from `UserSettings`)
-- All sent notifications are logged to the database for audit/history (`NotificationLog`)
-- Automated daily reminder job that checks users with active savings goals and
-  sends reminders based on each user's preferred frequency (daily/weekly/monthly)
-- Reminder logic prevents duplicate sends — a user won't be reminded again until
-  their chosen frequency interval has passed
-- Manual trigger endpoint for testing/verifying the reminder logic on demand
-
-### Scheduled Job
-- Runs automatically every day at 9:00 AM
-- Evaluates all active users with at least one active goal
-- Sends a reminder summarizing required contributions per active goal
-
-### Known limitations
-- Actual delivery (email/SMS/push) is not yet integrated with a provider —
-  notifications are currently logged and recorded in the database only
-- Notifications are only triggered by the scheduled reminder job so far;
-  other events (e.g. goal completion, successful contribution) do not yet
-  send notifications
-- Not yet tested against a live database — logic is implemented and compiles
-  cleanly, but end-to-end execution is unverified
->>>>>>> origin/main
+| Method | Route | Description |
+| :--- | :--- | :--- |
+| **POST** | `/goals/simulate` | Calculate a goal scenario without saving it to the database. |
+| **GET** | `/goals/:id/progress` | Return current progress, required contributions, and on-track status. |
+| **GET** | `/goals/:id/health` | Calculate and persist the dynamic goal health score. |
+| **POST** | `/goals/:id/recovery-plan` | Calculate catch-up contributions needed after a missed payment. |
+| **POST** | `/goals/:goalId/contributions` | Atomically record a contribution and recalculate the goal. |
+| **GET** | `/goals/:goalId/contributions` | List all historical contributions for a specific goal. |
+| **GET** | `/notifications` | List the authenticated user's notification history. |
+| **PATCH**| `/notifications/:id/read` | Mark a specific notification as read. |
+| **POST** | `/notifications/trigger-reminders` | Manually run the daily reminder check (for testing purposes). |

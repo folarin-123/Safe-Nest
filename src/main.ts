@@ -29,7 +29,6 @@ async function bootstrap() {
   app.setBaseViewsDir(join(__dirname, '..', 'views'));
   app.setViewEngine('ejs');
 
-  // ── Input validation & sanitization ──────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -39,7 +38,7 @@ async function bootstrap() {
     }),
   );
 
-  // ── Global error handling ─────────────────────────────────────────────────
+  
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // ── Structured API response format ────────────────────────────────────────

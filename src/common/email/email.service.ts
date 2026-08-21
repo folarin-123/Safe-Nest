@@ -23,7 +23,7 @@ export class EmailService {
     const apiKey = configService.getOrThrow<string>('SENDGRID_API_KEY');
     sgMail.setApiKey(apiKey);
 
-    this.fromAddress = 'folarinsamuel133@gmail.com';
+    this.fromAddress = configService.get<string>('EMAIL_FROM') || 'folarinsamuel133@gmail.com';
   }
 
   async renderTemplate<T extends EmailTemplateName>(
