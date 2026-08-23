@@ -32,12 +32,7 @@ export class AuthController {
     return user;
   }
 
-  /**
-   * POST /api/v1/auth/forgot-password
-   * Accepts an email and sends a reset link if the user exists.
-   * Always returns a generic success message to prevent email enumeration.
-   * Rate limited to 3 requests per 10 minutes.
-   */
+
   @Throttle(3, 600)
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {

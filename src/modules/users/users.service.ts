@@ -137,6 +137,47 @@ export class UsersService {
     });
   }
 
+
+
+
+  async getSettings(userId: string) {
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    });
+
+    if (!settings) {
+      return {
+        userId,
+        pushEnabled: true,
+        emailEnabled: true,
+        theme: 'LIGHT',
+      };
+    }
+
+    return settings;
+  }
+
+  async updateSettings(
+    userId: string,
+    data: { pushEnabled?: boolean; emailEnabled?: boolean },
+  ) {
+    return this.prisma.userSettings.upsert({
+      where: { userId },
+      update: {
+        ...(data.pushEnabled !== undefined && { pushEnabled: data.pushEnabled }),
+        ...(data.emailEnabled !== undefined && { emailEnabled: data.emailEnabled }),
+      },
+      create: {
+        userId,
+        pushEnabled: data.pushEnabled ?? true,
+        emailEnabled: data.emailEnabled ?? true,
+        theme: 'LIGHT',
+      },
+    });
+  }
+
+ 
+
   private throwIfUniqueConstraint(error: unknown): void {
     if (
       typeof error === 'object' &&

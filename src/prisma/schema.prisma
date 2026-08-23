@@ -18,10 +18,10 @@ model User {
   status              AccountStatus         @default(PENDING_VERIFICATION)
   isVerified          Boolean               @default(false) @map("is_verified")
   mfaEnabled          Boolean               @default(false) @map("mfa_enabled")
-  // ─── added OAuth fields ──────────────────────
+  
   oauthProvider       String?               @map("oauth_provider") @db.VarChar(50)
   oauthProviderId     String?               @map("oauth_provider_id") @db.VarChar(255)
-  // ──────────────────────────────────────────────
+
   lastLogin           DateTime?             @map("last_login") @db.Timestamptz(6)
   createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)

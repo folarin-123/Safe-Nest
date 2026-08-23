@@ -3,6 +3,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 @Controller('users')
 export class UsersController {
@@ -23,5 +24,20 @@ export class UsersController {
   @Put('me')
   async updateProfile(@CurrentUser() user: any, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.updateUser(user.id, updateUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/settings')
+  async getSettings(@CurrentUser() user: any) {
+    return this.usersService.getSettings(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('me/settings')
+  async updateSettings(
+    @CurrentUser() user: any,
+    @Body() updateSettingsDto: UpdateSettingsDto
+  ) {
+    return this.usersService.updateSettings(user.id, updateSettingsDto);
   }
 }
