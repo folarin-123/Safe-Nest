@@ -15,11 +15,17 @@ export class AnalyticsService {
   ): Promise<void> {
     try {
       await this.prisma.analyticsEvent.create({
-        data: { eventName, userId: userId ?? null, properties: properties as Prisma.InputJsonValue },
+        data: {
+          eventName,
+          properties: properties as Prisma.InputJsonValue,
+          userId: userId ?? null,
+        },
       });
     } catch (error) {
       this.logger.warn(
-        `Analytics event ${eventName} could not be recorded: ${error instanceof Error ? error.message : String(error)}`,
+        `Analytics event ${eventName} could not be recorded: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
@@ -29,11 +35,15 @@ export class AnalyticsService {
     featureName: string,
     interactionType: string,
   ): void {
-    void this.trackEvent('core_feature_clicked', {
-      feature_name: featureName,
-      interaction_type: interactionType,
-      user_id: userId,
-    }, userId);
+    void this.trackEvent(
+      'core_feature_clicked',
+      {
+        feature_name: featureName,
+        interaction_type: interactionType,
+        user_id: userId,
+      },
+      userId,
+    );
   }
 
   /**
@@ -63,39 +73,79 @@ export class AnalyticsService {
       }),
       this.prisma.goal.aggregate({
         where: { userId },
-        _sum: { targetAmount: true, currentAmount: true },
-        _count: { id: true },
+        _sum: {
+          targetAmount: true,
+          currentAmount: true,
+        },
+        _count: {
+          id: true,
+        },
       }),
     ]);
 
     const totalGoals = aggregates._count.id;
-    const totalTargetValue = Number(aggregates._sum.targetAmount ?? 0);
-    const totalProgressAmount = Number(aggregates._sum.currentAmount ?? 0);
+
+    const totalTargetValue = Number(
+      aggregates._sum.targetAmount ?? 0,
+    );
+
+    const totalProgressAmount = Number(
+      aggregates._sum.currentAmount ?? 0,
+    );
+
     const overallProgressPercentage =
       totalTargetValue > 0
-        ? Math.round((totalProgressAmount / totalTargetValue) * 10000) / 100
+        ? Math.round(
+            (totalProgressAmount / totalTargetValue) * 10000,
+          ) / 100
         : 0;
 
-    const totalActiveGoals = goals.filter((g) => g.status === 'ACTIVE').length;
+    const totalActiveGoals = goals.filter(
+      (g) => g.status === 'ACTIVE',
+    ).length;
+
     const goalsAtRiskCount = goals.filter(
-      (g) => g.status === 'AT_RISK' || g.status === 'OFF_TRACK',
+      (g) =>
+        g.status === 'AT_RISK' ||
+        g.status === 'OFF_TRACK',
     ).length;
 
     const now = new Date();
-    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const in30Days = new Date(
+      now.getTime() + 30 * 24 * 60 * 60 * 1000,
+    );
 
     const upcomingCommitments = goals
-      .filter((g) => g.status !== 'ACHIEVED' && g.deadline > now && g.deadline <= in30Days)
+      .filter(
+        (g) =>
+          g.status !== 'ACHIEVED' &&
+          g.deadline > now &&
+          g.deadline <= in30Days,
+      )
       .map((g) => ({
         goalId: g.id,
         goalName: g.goalName,
         deadline: g.deadline.toISOString().split('T')[0],
-        daysUntilDeadline: Math.ceil((g.deadline.getTime() - now.getTime()) / 86_400_000),
-        amountRemaining: Math.max(0, Number(g.targetAmount) - Number(g.currentAmount)),
-        requiredContribution: g.requiredContribution ? Number(g.requiredContribution) : null,
+        daysUntilDeadline: Math.ceil(
+          (g.deadline.getTime() - now.getTime()) /
+            86_400_000,
+        ),
+        amountRemaining: Math.max(
+          0,
+          Number(g.targetAmount) -
+            Number(g.currentAmount),
+        ),
+        requiredContribution: g.requiredContribution
+          ? Number(g.requiredContribution)
+          : null,
         status: g.status,
       }))
-      .sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline);
+      .sort(
+        (a, b) =>
+          a.daysUntilDeadline -
+          b.daysUntilDeadline,
+      );
 
     return {
       totalActiveGoals,

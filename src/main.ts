@@ -51,8 +51,8 @@ async function bootstrap() {
   const corsOrigin = frontendUrl
     ? frontendUrl.split(',').map((v) => v.trim())
     : isProduction
-    ? false
-    : true;
+      ? false
+      : true;
 
   app.enableCors({
     origin: corsOrigin,
@@ -62,11 +62,16 @@ async function bootstrap() {
   });
 
   if (isProduction && !frontendUrl) {
-    logger.warn('FRONTEND_URL is not configured. CORS is disabled until a valid origin is set.');
+    logger.warn(
+      'FRONTEND_URL is not configured. CORS is disabled until a valid origin is set.',
+    );
   }
 
   const port = process.env.PORT || 5052;
+
   await app.listen(port);
+
   logger.log(`SafeNest running on port ${port} — base: /api/v1`);
 }
+
 bootstrap();
