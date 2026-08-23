@@ -17,6 +17,7 @@ import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { AuthResult, SafeUser } from './auth.types';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { ChangePasswordDto } from './dto/change-password.dto'; // <-- Added Import
 
 const SALT_ROUNDS = 10;
 const RESET_TOKEN_EXPIRY_MINUTES = 15;
@@ -156,12 +157,9 @@ export class AuthService {
   // ── Forgot Password ────────────────────────────────────────────────────────
 
   async forgotPassword(email: string): Promise<void> {
-    // Look up the user — if not found we still return silently to prevent
-    // email enumeration attacks.
     const user = await this.usersService.findByEmail(email);
     if (!user) return;
 
-    // Generate a cryptographically-secure raw token and its SHA-256 hash.
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto
       .createHash('sha256')
@@ -172,13 +170,10 @@ export class AuthService {
       Date.now() + RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000,
     );
 
-    // Remove any previous tokens for this user so only one active reset
-    // link exists at a time.
     await this.prisma.passwordReset.deleteMany({
       where: { userId: user.id },
     });
 
-    // Persist the hashed token — never store the raw token in the database.
     await this.prisma.passwordReset.create({
       data: {
         userId: user.id,
@@ -190,7 +185,6 @@ export class AuthService {
     const baseUrl = this.configService.getOrThrow<string>('APP_BASE_URL');
     const resetUrl = `${baseUrl}/reset-password/${rawToken}`;
 
-    // Fire-and-forget — email failure must not break the flow.
     void this.emailService
       .sendTemplate(user.email, 'reset-password', {
         fullName: user.fullName,
@@ -218,7 +212,6 @@ export class AuthService {
       );
     }
 
-    // Hash the incoming raw token to look up the stored record.
     const tokenHash = crypto
       .createHash('sha256')
       .update(rawToken)
@@ -228,8 +221,6 @@ export class AuthService {
       where: { tokenHash },
     });
 
-    // Use a single opaque error for all invalid-token states to prevent
-    // timing-based probing of which condition failed.
     if (
       !resetRecord ||
       resetRecord.used ||
@@ -240,7 +231,6 @@ export class AuthService {
 
     const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    // Atomically update the user's password and mark the token as used.
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: resetRecord.userId },
@@ -251,6 +241,41 @@ export class AuthService {
         data: { used: true },
       }),
     ]);
+  }
+
+  // ── Change Password (Authenticated User) ───────────────────────────────────
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('New password and confirmation must match');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException('OAuth users cannot change passwords directly. Please use forgot password.');
+    }
+
+    const isOldPasswordValid = await bcrypt.compare(dto.oldPassword, user.passwordHash);
+    if (!isOldPasswordValid) {
+      throw new BadRequestException('Incorrect current password');
+    }
+
+    // Prevent changing to the exact same password
+    const isSamePassword = await bcrypt.compare(dto.newPassword, user.passwordHash);
+    if (isSamePassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, SALT_ROUNDS);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash },
+    });
   }
 
   // ── OAuth Login (Google / Facebook) ────────────────────────────────────────
@@ -264,7 +289,6 @@ export class AuthService {
       );
     }
 
-    // Look up existing user by email — handles account-linking automatically.
     let user: Awaited<ReturnType<UsersService['createOAuthUser']>> | null =
       await this.usersService.findByEmail(email);
 
@@ -273,12 +297,8 @@ export class AuthService {
         throw new UnauthorizedException('Account is not active');
       }
 
-      // ── Account linking ─────────────────────────────────────────────────
-      // The user already exists (email/password or another OAuth provider).
-      // Link the new provider without touching their password.
       await this.usersService.linkOAuthProvider(user.id, provider, providerId);
     } else {
-      // ── New OAuth user ──────────────────────────────────────────────────
       user = await this.usersService.createOAuthUser({
         email,
         fullName,
@@ -292,7 +312,6 @@ export class AuthService {
         timestamp: new Date().toISOString(),
       }, user.id);
 
-      // Welcome email — fire-and-forget.
       void this.sendWelcomeEmail(email, fullName).catch((err: unknown) =>
         this.logger.warn(
           `Welcome email failed for OAuth user ${email}: ${

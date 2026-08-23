@@ -1,10 +1,11 @@
-import { Controller, Post, Body, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Put, Body, Get, Param, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -32,7 +33,6 @@ export class AuthController {
     return user;
   }
 
-
   @Throttle(3, 600)
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -58,5 +58,19 @@ export class AuthController {
       dto.confirmPassword,
     );
     return { message: 'Your password has been reset successfully. You can now log in.' };
+  }
+
+  /**
+   * PUT /api/v1/auth/change-password
+   * Allows an authenticated user to change their password while logged in.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Put('change-password')
+  async changePassword(
+    @CurrentUser() user: any,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(user.id, dto);
+    return { message: 'Your password has been updated successfully.' };
   }
 }
