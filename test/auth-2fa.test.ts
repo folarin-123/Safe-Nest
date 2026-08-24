@@ -73,7 +73,7 @@ describe('AuthService - 2FA Features', () => {
       mfaSecret: secret,
     });
 
-    const result = await authService.verifyLogin2fa('mock_token', validCode);
+    const result = await authService.verifyLogin2FA('mock_token', validCode);
     assert.strictEqual(result.accessToken, 'mock_token');
     assert.strictEqual(result.user.id, 'user_1');
   });
