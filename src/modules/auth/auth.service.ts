@@ -29,7 +29,7 @@ const auth = {
   },
 };
 import { AnalyticsService } from '../analytics/analytics.service';
-import { ChangePasswordDto } from './dto/change-password.dto'; // <-- Added Import
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const SALT_ROUNDS = 10;
 const RESET_TOKEN_EXPIRY_MINUTES = 15;
@@ -177,22 +177,25 @@ export class AuthService {
     };
   }
 
-  // ── 2FA ────────────────────────────────────────────────────────────────────
+  // ── 2FA Setup, Enable, Disable, Verify Login ────────────────────────────────
 
-  async setup2fa(userId: string): Promise<{ qrCodeDataUrl: string; manualEntryKey: string }> {
-    const user = await this.usersService.findRawById(userId);
+  async setup2FA(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    const secret = auth.generateSecret();
-
+    const secret = otplib.generateSecret();
     await this.prisma.user.update({
       where: { id: userId },
       data: { mfaSecret: secret },
     });
 
-    const otpauthUrl = auth.keyuri(user.email, 'SafeNest', secret);
+    const otpauthUrl = otplib.generateURI({
+      secret,
+      label: user.email,
+      issuer: 'SafeNest',
+    });
     const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
 
     return {
@@ -201,13 +204,13 @@ export class AuthService {
     };
   }
 
-  async enable2fa(userId: string, code: string): Promise<{ message: string }> {
-    const user = await this.usersService.findRawById(userId);
+  async enable2FA(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.mfaSecret) {
       throw new BadRequestException('2FA setup must be initiated first');
     }
 
-    const isValid = auth.verify({
+    const isValid = otplib.verify({
       token: code,
       secret: user.mfaSecret,
     });
@@ -221,20 +224,22 @@ export class AuthService {
       data: { mfaEnabled: true },
     });
 
-    return { message: 'Two-factor authentication enabled successfully.' };
+    return { message: 'Two-factor authentication enabled successfully' };
   }
 
-  async disable2fa(userId: string, password: string): Promise<{ message: string }> {
-    const user = await this.usersService.findRawById(userId);
+  async disable2FA(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    if (user.passwordHash) {
-      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!isValidPassword) {
-        throw new BadRequestException('Invalid password');
-      }
+    if (!user.passwordHash) {
+      throw new BadRequestException('OAuth users cannot disable 2FA with a password');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Incorrect password');
     }
 
     await this.prisma.user.update({
@@ -245,10 +250,10 @@ export class AuthService {
       },
     });
 
-    return { message: 'Two-factor authentication disabled successfully.' };
+    return { message: 'Two-factor authentication disabled successfully' };
   }
 
-  async verifyLogin2fa(challengeToken: string, code: string): Promise<AuthResult> {
+  async verifyLogin2FA(challengeToken: string, code: string): Promise<AuthResult> {
     let payload: any;
     try {
       payload = this.jwtService.verify(challengeToken);
@@ -256,16 +261,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired challenge token');
     }
 
-    if (!payload || !payload.sub || !payload.mfaPending) {
-      throw new UnauthorizedException('Invalid challenge token');
+    if (!payload?.mfaPending || !payload?.sub) {
+      throw new UnauthorizedException('Invalid challenge token payload');
     }
 
-    const user = await this.usersService.findRawById(payload.sub);
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
     if (!user || user.status !== 'ACTIVE' || !user.mfaSecret) {
-      throw new UnauthorizedException('Invalid account state');
+      throw new UnauthorizedException('Invalid login attempt');
     }
 
-    const isValid = auth.verify({
+    const isValid = otplib.verify({
       token: code,
       secret: user.mfaSecret,
     });
@@ -422,28 +430,30 @@ export class AuthService {
       );
     }
 
-    let user: Awaited<ReturnType<UsersService['createOAuthUser']>> | null =
-      await this.usersService.findByEmail(email);
+    let existingUser = await this.usersService.findByEmail(email);
+    let userId: string;
 
-    if (user) {
-      if (user.status !== 'ACTIVE') {
+    if (existingUser) {
+      if (existingUser.status !== 'ACTIVE') {
         throw new UnauthorizedException('Account is not active');
       }
 
-      await this.usersService.linkOAuthProvider(user.id, provider, providerId);
+      await this.usersService.linkOAuthProvider(existingUser.id, provider, providerId);
+      userId = existingUser.id;
     } else {
-      user = await this.usersService.createOAuthUser({
+      const newUser = await this.usersService.createOAuthUser({
         email,
         fullName,
         oauthProvider: provider,
         oauthProviderId: providerId,
       });
+      userId = newUser.id;
 
       void this.analyticsService.trackEvent('user_signed_up', {
         signing_method: provider === 'google' ? 'Google' : 'Facebook',
         user_role: 'user',
         timestamp: new Date().toISOString(),
-      }, user.id);
+      }, newUser.id);
 
       void this.sendWelcomeEmail(email, fullName).catch((err: unknown) =>
         this.logger.warn(
@@ -454,11 +464,11 @@ export class AuthService {
       );
     }
 
+    await this.usersService.markLastLogin(userId);
+    const user = await this.usersService.findById(userId);
     if (!user) {
       throw new InternalServerErrorException('Unable to complete OAuth login');
     }
-
-    await this.usersService.markLastLogin(user.id);
 
     const accessToken = this.jwtService.sign({
       sub: user.id,

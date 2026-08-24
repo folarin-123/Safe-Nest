@@ -6,9 +6,9 @@ import { LoginAuthDto } from './dto/login-auth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Enable2faDto } from './dto/enable-2fa.dto';
-import { Disable2faDto } from './dto/disable-2fa.dto';
-import { VerifyLogin2faDto } from './dto/verify-login-2fa.dto';
+import { Enable2FaDto } from './dto/enable-2fa.dto';
+import { Disable2FaDto } from './dto/disable-2fa.dto';
+import { Verify2FaLoginDto } from './dto/verify-2fa-login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -79,24 +79,25 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('2fa/setup')
-  async setup2fa(@CurrentUser() user: any) {
-    return this.authService.setup2fa(user.id);
+  async setup2FA(@CurrentUser() user: any) {
+    return this.authService.setup2FA(user.id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('2fa/enable')
-  async enable2fa(@CurrentUser() user: any, @Body() dto: Enable2faDto) {
-    return this.authService.enable2fa(user.id, dto.code);
+  async enable2FA(@CurrentUser() user: any, @Body() dto: Enable2FaDto) {
+    return this.authService.enable2FA(user.id, dto.code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('2fa/disable')
-  async disable2fa(@CurrentUser() user: any, @Body() dto: Disable2faDto) {
-    return this.authService.disable2fa(user.id, dto.password);
+  async disable2FA(@CurrentUser() user: any, @Body() dto: Disable2FaDto) {
+    return this.authService.disable2FA(user.id, dto.password);
   }
 
+  @Throttle(10, 60)
   @Post('2fa/verify-login')
-  async verifyLogin2fa(@Body() dto: VerifyLogin2faDto) {
-    return this.authService.verifyLogin2fa(dto.challengeToken, dto.code);
+  async verifyLogin2FA(@Body() dto: Verify2FaLoginDto) {
+    return this.authService.verifyLogin2FA(dto.challengeToken, dto.code);
   }
 }

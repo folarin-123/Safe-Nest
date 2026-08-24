@@ -9,7 +9,7 @@ import { ContributionsModule } from './modules/contributions/contributions.modul
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FinancialProfileModule } from './modules/financial-profile/financial-profile.module';
-import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { EmailModule } from './common/email/email.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -127,7 +127,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     NotificationsModule,
     AnalyticsModule,
     FinancialProfileModule,
-    BankAccountsModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [

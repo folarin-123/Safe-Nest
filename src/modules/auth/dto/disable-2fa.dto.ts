@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class Disable2faDto {
-  @IsNotEmpty()
+export class Disable2FaDto {
   @IsString()
+  @IsNotEmpty()
   password!: string;
 }

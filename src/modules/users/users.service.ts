@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 import { AccountStatus } from '@prisma/client';
 import { CloudinaryService } from '../../common/services/cloudinary.service';
 import type {} from 'multer';
@@ -312,8 +313,6 @@ export class UsersService {
       },
     });
   }
-
- 
 
   private throwIfUniqueConstraint(error: unknown): void {
     if (
