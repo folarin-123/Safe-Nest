@@ -1,12 +1,15 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountStatus } from '@prisma/client';
+import { CloudinaryService } from '../../common/services/cloudinary.service';
 
 const safeUserSelect = {
   id: true,
   email: true,
   phone: true,
   fullName: true,
+  avatarUrl: true,
   status: true,
   createdAt: true,
   updatedAt: true,
@@ -14,7 +17,10 @@ const safeUserSelect = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
@@ -25,6 +31,10 @@ export class UsersService {
         phone: true,
         passwordHash: true,
         fullName: true,
+        avatarUrl: true,
+        avatarPublicId: true,
+        mfaEnabled: true,
+        mfaSecret: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -39,10 +49,113 @@ export class UsersService {
     });
   }
 
+  async uploadAvatar(userId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('File must be an image');
+    }
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      throw new BadRequestException('File size exceeds 5MB limit');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarPublicId: true },
+    });
+
+    if (user?.avatarPublicId) {
+      await this.cloudinaryService.deleteImage(user.avatarPublicId);
+    }
+
+    const folder = `safenest/avatars/${userId}`;
+    const { url, publicId } = await this.cloudinaryService.uploadImage(
+      file.buffer,
+      folder,
+    );
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        avatarUrl: url,
+        avatarPublicId: publicId,
+      },
+      select: safeUserSelect,
+    });
+  }
+
+  async deleteAccount(userId: string, password?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.passwordHash) {
+      if (!password) {
+        throw new BadRequestException('Password is required to deactivate account');
+      }
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isPasswordValid) {
+        throw new BadRequestException('Invalid password');
+      }
+    }
+
+    const rawDeletedEmail = `deleted_${user.id}_${user.email}`;
+    const deletedEmail = rawDeletedEmail.length > 255 ? rawDeletedEmail.substring(0, 255) : rawDeletedEmail;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: 'DEACTIVATED',
+        email: deletedEmail,
+        phone: null,
+      },
+    });
+
+    return { message: 'Your account has been deactivated.' };
+  }
+
+  async removeAvatar(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true, avatarPublicId: true },
+    });
+
+    if (!user || (!user.avatarUrl && !user.avatarPublicId)) {
+      throw new NotFoundException('No avatar exists for this user');
+    }
+
+    if (user.avatarPublicId) {
+      await this.cloudinaryService.deleteImage(user.avatarPublicId);
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        avatarUrl: null,
+        avatarPublicId: null,
+      },
+      select: safeUserSelect,
+    });
+  }
+
   async findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
       select: safeUserSelect,
+    });
+  }
+
+  async findRawById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
     });
   }
 
