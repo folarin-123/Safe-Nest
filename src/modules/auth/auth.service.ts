@@ -16,6 +16,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { AuthResult, SafeUser } from './auth.types';
+import * as otplib from 'otplib';
+import * as qrcode from 'qrcode';
+
+const auth = {
+  generateSecret: () => otplib.generateSecret(),
+  keyuri: (account: string, issuer: string, secret: string) =>
+    otplib.generateURI({ label: account, issuer, secret }),
+  verify: (opts: { token: string; secret: string }) => {
+    const res = otplib.verifySync({ token: opts.token, secret: opts.secret });
+    return res.valid;
+  },
+};
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ChangePasswordDto } from './dto/change-password.dto'; // <-- Added Import
 
@@ -122,7 +134,7 @@ export class AuthService {
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  async login(dto: LoginAuthDto): Promise<AuthResult> {
+  async login(dto: LoginAuthDto): Promise<AuthResult | { mfaRequired: boolean; challengeToken: string }> {
     const user = await this.usersService.findByEmail(dto.email);
 
     if (!user) {
@@ -139,6 +151,127 @@ export class AuthService {
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.mfaEnabled) {
+      const challengeToken = this.jwtService.sign(
+        { sub: user.id, mfaPending: true },
+        { expiresIn: '5m' },
+      );
+      return {
+        mfaRequired: true,
+        challengeToken,
+      };
+    }
+
+    await this.usersService.markLastLogin(user.id);
+
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+    });
+
+    return {
+      user: this.toSafeUser(user),
+      accessToken,
+    };
+  }
+
+  // ── 2FA ────────────────────────────────────────────────────────────────────
+
+  async setup2fa(userId: string): Promise<{ qrCodeDataUrl: string; manualEntryKey: string }> {
+    const user = await this.usersService.findRawById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const secret = auth.generateSecret();
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret },
+    });
+
+    const otpauthUrl = auth.keyuri(user.email, 'SafeNest', secret);
+    const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
+
+    return {
+      qrCodeDataUrl,
+      manualEntryKey: secret,
+    };
+  }
+
+  async enable2fa(userId: string, code: string): Promise<{ message: string }> {
+    const user = await this.usersService.findRawById(userId);
+    if (!user || !user.mfaSecret) {
+      throw new BadRequestException('2FA setup must be initiated first');
+    }
+
+    const isValid = auth.verify({
+      token: code,
+      secret: user.mfaSecret,
+    });
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid authentication code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true },
+    });
+
+    return { message: 'Two-factor authentication enabled successfully.' };
+  }
+
+  async disable2fa(userId: string, password: string): Promise<{ message: string }> {
+    const user = await this.usersService.findRawById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.passwordHash) {
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      if (!isValidPassword) {
+        throw new BadRequestException('Invalid password');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        mfaEnabled: false,
+        mfaSecret: null,
+      },
+    });
+
+    return { message: 'Two-factor authentication disabled successfully.' };
+  }
+
+  async verifyLogin2fa(challengeToken: string, code: string): Promise<AuthResult> {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(challengeToken);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired challenge token');
+    }
+
+    if (!payload || !payload.sub || !payload.mfaPending) {
+      throw new UnauthorizedException('Invalid challenge token');
+    }
+
+    const user = await this.usersService.findRawById(payload.sub);
+    if (!user || user.status !== 'ACTIVE' || !user.mfaSecret) {
+      throw new UnauthorizedException('Invalid account state');
+    }
+
+    const isValid = auth.verify({
+      token: code,
+      secret: user.mfaSecret,
+    });
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid authentication code');
     }
 
     await this.usersService.markLastLogin(user.id);

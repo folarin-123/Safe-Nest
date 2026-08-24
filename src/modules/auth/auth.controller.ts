@@ -6,6 +6,9 @@ import { LoginAuthDto } from './dto/login-auth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { Enable2faDto } from './dto/enable-2fa.dto';
+import { Disable2faDto } from './dto/disable-2fa.dto';
+import { VerifyLogin2faDto } from './dto/verify-login-2fa.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -72,5 +75,28 @@ export class AuthController {
   ) {
     await this.authService.changePassword(user.id, dto);
     return { message: 'Your password has been updated successfully.' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/setup')
+  async setup2fa(@CurrentUser() user: any) {
+    return this.authService.setup2fa(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/enable')
+  async enable2fa(@CurrentUser() user: any, @Body() dto: Enable2faDto) {
+    return this.authService.enable2fa(user.id, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/disable')
+  async disable2fa(@CurrentUser() user: any, @Body() dto: Disable2faDto) {
+    return this.authService.disable2fa(user.id, dto.password);
+  }
+
+  @Post('2fa/verify-login')
+  async verifyLogin2fa(@Body() dto: VerifyLogin2faDto) {
+    return this.authService.verifyLogin2fa(dto.challengeToken, dto.code);
   }
 }
