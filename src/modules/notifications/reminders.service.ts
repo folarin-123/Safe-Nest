@@ -28,7 +28,9 @@ export class RemindersService {
       },
       include: {
         goals: { where: { status: 'ACTIVE' } },
-        settings: true,
+        settings: {
+          select: { contributionReminder: true },
+        },
       },
     });
 
@@ -50,15 +52,10 @@ export class RemindersService {
     fullName: string;
     goals: { goalName: string; requiredContribution: any }[];
     settings: {
-      id: string;
-      userId: string;
-      theme: string;
-      pushEnabled: boolean;
-      emailEnabled: boolean;
+      contributionReminder: boolean;
     } | null;
   }): Promise<boolean> {
-    // Respect user notification preference, if settings exist
-    if (user.settings && !user.settings.pushEnabled && !user.settings.emailEnabled) {
+    if (user.settings && !user.settings.contributionReminder) {
       return false;
     }
 
@@ -85,7 +82,7 @@ export class RemindersService {
 
     const firstName = user.fullName?.trim().split(/\s+/)[0] || 'there';
 
-    await this.notificationsService.send(
+    const notification = await this.notificationsService.send(
       user.id,
       'REMINDER',
       `Hi ${firstName}, here's your savings reminder — ${goalSummaries}.`,
@@ -94,6 +91,6 @@ export class RemindersService {
       reminderGoals,
     );
 
-    return true;
+    return notification !== null;
   }
 }

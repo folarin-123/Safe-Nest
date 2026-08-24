@@ -6,6 +6,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import type {} from 'multer';
 
 @Controller('users')
 export class UsersController {

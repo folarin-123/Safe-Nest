@@ -53,7 +53,12 @@ model UserSettings {
   userId       String          @unique @map("user_id") @db.Uuid
   theme        ThemePreference @default(LIGHT)
   pushEnabled  Boolean         @default(true) @map("push_enabled")
-  emailEnabled Boolean         @default(true) @map("email_enabled")
+  emailEnabled             Boolean         @default(true) @map("email_enabled")
+  contributionReminder     Boolean         @default(true) @map("contribution_reminder")
+  missedContributionAlert  Boolean         @default(true) @map("missed_contribution_alert")
+  milestoneCelebration     Boolean         @default(true) @map("milestone_celebration")
+  smartInsights            Boolean         @default(true) @map("smart_insights")
+  emailUpdate              Boolean         @default(true) @map("email_update")
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
@@ -222,6 +227,8 @@ enum NotificationType {
   ALERT
   MILESTONE
   SECURITY
+  SMART_INSIGHT
+  EMAIL_UPDATE
 }
 
 enum GoalCategoryType {

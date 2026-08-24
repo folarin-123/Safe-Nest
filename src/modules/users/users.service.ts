@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountStatus } from '@prisma/client';
 import { CloudinaryService } from '../../common/services/cloudinary.service';
+import type {} from 'multer';
 
 const safeUserSelect = {
   id: true,
@@ -263,6 +264,11 @@ export class UsersService {
         userId,
         pushEnabled: true,
         emailEnabled: true,
+        contributionReminder: true,
+        missedContributionAlert: true,
+        milestoneCelebration: true,
+        smartInsights: true,
+        emailUpdate: true,
         theme: 'LIGHT',
       };
     }
@@ -272,16 +278,34 @@ export class UsersService {
 
   async updateSettings(
     userId: string,
-    data: { pushEnabled?: boolean; emailEnabled?: boolean },
+    data: {
+      contributionReminder?: boolean;
+      missedContributionAlert?: boolean;
+      milestoneCelebration?: boolean;
+      smartInsights?: boolean;
+      emailUpdate?: boolean;
+      pushEnabled?: boolean;
+      emailEnabled?: boolean;
+    },
   ) {
     return this.prisma.userSettings.upsert({
       where: { userId },
       update: {
+        ...(data.contributionReminder !== undefined && { contributionReminder: data.contributionReminder }),
+        ...(data.missedContributionAlert !== undefined && { missedContributionAlert: data.missedContributionAlert }),
+        ...(data.milestoneCelebration !== undefined && { milestoneCelebration: data.milestoneCelebration }),
+        ...(data.smartInsights !== undefined && { smartInsights: data.smartInsights }),
+        ...(data.emailUpdate !== undefined && { emailUpdate: data.emailUpdate }),
         ...(data.pushEnabled !== undefined && { pushEnabled: data.pushEnabled }),
         ...(data.emailEnabled !== undefined && { emailEnabled: data.emailEnabled }),
       },
       create: {
         userId,
+        contributionReminder: data.contributionReminder ?? true,
+        missedContributionAlert: data.missedContributionAlert ?? true,
+        milestoneCelebration: data.milestoneCelebration ?? true,
+        smartInsights: data.smartInsights ?? true,
+        emailUpdate: data.emailUpdate ?? true,
         pushEnabled: data.pushEnabled ?? true,
         emailEnabled: data.emailEnabled ?? true,
         theme: 'LIGHT',

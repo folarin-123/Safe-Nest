@@ -31,6 +31,21 @@ export class NotificationsService {
   ) {
     this.logger.log(`Notification to user ${userId}: [${type}] ${message}`);
 
+    const preference = this.preferenceForType(type);
+    if (preference) {
+      const settings = await this.prisma.userSettings.findUnique({
+        where: { userId },
+        select: {
+          contributionReminder: true,
+          missedContributionAlert: true,
+          milestoneCelebration: true,
+          smartInsights: true,
+          emailUpdate: true,
+        },
+      });
+      if (settings && !settings[preference]) return null;
+    }
+
     const notification = await this.prisma.notificationLog.create({
       data: {
         userId,
@@ -66,6 +81,26 @@ export class NotificationsService {
     return notification;
   }
 
+  private preferenceForType(
+    type: NotificationType | string,
+  ): 'contributionReminder' | 'missedContributionAlert' | 'milestoneCelebration' | 'smartInsights' | 'emailUpdate' | null {
+    switch (type) {
+      case NotificationType.REMINDER:
+      case 'REMINDER': return 'contributionReminder';
+      case NotificationType.ALERT:
+      case 'ALERT':
+      case NotificationType.SECURITY:
+      case 'SECURITY': return 'missedContributionAlert';
+      case NotificationType.MILESTONE:
+      case 'MILESTONE': return 'milestoneCelebration';
+      case NotificationType.SMART_INSIGHT:
+      case 'SMART_INSIGHT': return 'smartInsights';
+      case NotificationType.EMAIL_UPDATE:
+      case 'EMAIL_UPDATE': return 'emailUpdate';
+      default: return null;
+    }
+  }
+
   private async sendReminderEmail(
     userId: string,
     reminderGoals?: ReminderGoalSummary[],
@@ -75,7 +110,7 @@ export class NotificationsService {
       select: {
         email: true,
         fullName: true,
-        settings: { select: { emailEnabled: true } },
+        settings: { select: { emailEnabled: true, contributionReminder: true } },
       },
     });
 
@@ -84,7 +119,7 @@ export class NotificationsService {
     // Respect the user's email preference explicitly. Only skip if they have
     // settings AND have explicitly turned email off — default (no settings
     // row, or emailEnabled true) is to send.
-    if (user.settings && user.settings.emailEnabled === false) {
+    if (user.settings && (!user.settings.emailEnabled || !user.settings.contributionReminder)) {
       return;
     }
 
