@@ -1,46 +1,152 @@
+# SafeNest Backend — Project Status Report
 
 
-SafeNest is a goal-based financial planning backend that acts as a financial accountability partner. It allows users to create structured savings plans, tracks their progress, and automates intelligent reminders to help them achieve major financial milestones.
 
-**Live API Base URL:** `https://safe-nest-de6h.onrender.com/api/v1`
 
----
 
-## 🚀 Features
+## 1. Executive Summary
 
-### 🔐 Authentication & User Management
-*   **Registration (`POST /auth/register`):** Validates input, checks for duplicate email/phone, hashes passwords with bcrypt, creates the user, and returns a JWT.
-*   **Login (`POST /auth/login`):** Validates credentials, blocks deactivated accounts, returns a JWT, and records the last login.
-*   **Protected Profile (`GET /auth/me`):** Verifies JWT via Passport strategy and returns the current user.
-*   **Robust Security:** Features password hashing, JWT generation, structured error handling, and environment variable configuration.
+SafeNest is a NestJS + Prisma + PostgreSQL financial planning backend that helps users set savings goals, calculates required contribution schedules, tracks deposits, sends automated reminders, and analyzes goal health.
 
-###  Goal-Based Savings Engine
-*   **Create a Goal:** Automatically calculates the required contribution per period based on target amount and deadline.
-*   **Goal Management:** List all user goals or view specific goals in detail, including full contribution history and real-time progress percentages.
-*   **Record Contributions:** Atomically updates the `currentAmount`, recalculates the remaining plan, and auto-completes the goal if the target is hit.
-*   **Data Isolation:** All financial routes are secured behind JWT authentication with strict ownership checks to prevent cross-user data access.
+**Verdict:** The core feature set — authentication, financial profiling, goal management, the goal-health calculation engine, recovery planning, and manual contributions — is fully implemented and functional. External integrations (SendGrid email, Cloudinary photo storage, Monnify payments) are complete in code but require live credentials to function in production.
 
-###  Notifications & Reminders Module
-Handles scheduling and delivering automated savings reminders to keep users accountable.
-*   **Centralized Preferences:** Respects user notification toggles (email/push) from `UserSettings`.
-*   **Audit Logging:** All sent notifications are safely recorded in the `NotificationLog` database table.
-*   **Smart Automation:** A scheduled job runs daily at 9:00 AM, evaluating users with active goals and dispatching reminders based on their preferred frequency (daily/weekly/monthly).
-*   **Idempotent Logic:** Prevents duplicate sends; a user will not be reminded again until their chosen frequency interval has passed.
+> ⚠️ **Note:** Mono bank-account linking, previously built and merged, was removed during this work and replaced with a Monnify checkout flow. See Section 5.
 
 ---
 
-##  HTTP API Routes
+## 2. Feature-by-Feature Functional Audit
 
-All routes are prefixed with `/api/v1` and require an `Authorization: Bearer <accessToken>` header. Successful responses utilize a standard envelope: `{ "success": true, "data": ..., "timestamp": "..." }`.
+| Feature | Status | Evidence | Notes |
+|---|---|---|---|
+| Auth: Register & Login |  Fully working | `auth.controller.ts`, `auth.service.ts` | Email/phone uniqueness enforced. Passwords hashed with bcrypt (salt 10). Issues JWT on success. |
+| Auth: Password Reset |  Fully working | `auth.controller.ts`, `auth.service.ts` | Cryptographically random token, SHA-256 hash stored in `PasswordReset` table, 15-min expiry. Sends templated email via SendGrid. |
+| Auth: Change Password |  Fully working | `auth.controller.ts`, `auth.service.ts` | Validates old password; rejects if new password matches old. |
+| Auth: Two-Factor Authentication |  Fully working | `auth.controller.ts`, `auth.service.ts` | TOTP secret via `otplib`, QR via `qrcode`. Login requires a challenge-token verification step when `mfaEnabled` is true. |
+| Auth: OAuth (Google/Facebook) |  Fully working | `oauth.controller.ts`, `strategies/` | Links by email or creates a new user on callback. |
+| User Profile & Settings |  Fully working | `users.controller.ts`, `users.service.ts` | Profile get/update; notification preferences upsert via `UserSettings`. |
+| Avatar Upload / Removal | 🔌 Requires external service | `users.controller.ts`, `users.service.ts` | Multer, 5MB limit, image-mimetype check. Deletes prior Cloudinary asset before storing new one. Needs `CLOUDINARY_*` env vars. |
+| Delete Account |  Fully working | `users.controller.ts`, `users.service.ts` | Soft-deactivates (`status: DEACTIVATED`), clears phone, prefixes email for reuse. `JwtStrategy` auto-rejects deactivated users. |
+| Financial Profile |  Fully working | `financial-profile.controller.ts` | Income amount/frequency, fixed/variable expenses, existing savings & commitments. |
+| Goals CRUD |  Fully working | `goals.controller.ts`, `goals.service.ts` | Create/list/detail(+contribution history)/update. Auto-recalculates required contribution & health score on write. |
+| Goal Calculation Engine |  Fully working | `goals.utils.ts`, `goal-calculation.service.ts` | Required contribution per period, progress %, 0–100 health score, status (`HEALTHY`/`AT_RISK`/`OFF_TRACK`/`ACHIEVED`), feasibility check. |
+| Smart Recovery Plan |  Fully working | `goal-calculation.service.ts` | Proposes 3 options for behind-schedule goals: raise contribution, extend deadline, or reduce target. |
+| Goal Simulator |  Fully working | `goal-calculation.service.ts` | Pure calculation, no persistence — test hypothetical target/deadline/frequency combos. |
+| Contributions Tracking |  Fully working | `contributions.controller.ts`, `contributions.service.ts` | Atomic, serializable-isolation transactions. Idempotent via unique `externalReference`. Updates goal amount/health/status atomically. |
+| **Bank Accounts (Mono)** |  **Removed** | `schema.prisma` | Mono linking was fully uninstalled and replaced with Monnify checkout. **Not requested — see Section 5.** |
+| Payments (Monnify) |  Requires external service | `monnify-client.service.ts`, `payments.service.ts` | Checkout initiation (`POST /payments/initiate`), verification (`POST /payments/verify`), webhook (`POST /payments/webhook`). Includes `MOCK_MONNIFY=true` demo mode for offline testing. |
+| Notifications & Reminders |  Fully working | `notifications.controller.ts`, `reminders.service.ts` | In-app log query/read. Daily cron evaluates active goals, respects weekly cadence + user settings, sends via SendGrid. |
+| Analytics & Dashboard |  Fully working | `analytics.controller.ts`, `dashboard.controller.ts` | Event logging; dashboard aggregates total target/current savings, overall %, active goal count, health breakdown, recent activity. |
 
-| Method | Route | Description |
-| :--- | :--- | :--- |
-| **POST** | `/goals/simulate` | Calculate a goal scenario without saving it to the database. |
-| **GET** | `/goals/:id/progress` | Return current progress, required contributions, and on-track status. |
-| **GET** | `/goals/:id/health` | Calculate and persist the dynamic goal health score. |
-| **POST** | `/goals/:id/recovery-plan` | Calculate catch-up contributions needed after a missed payment. |
-| **POST** | `/goals/:goalId/contributions` | Atomically record a contribution and recalculate the goal. |
-| **GET** | `/goals/:goalId/contributions` | List all historical contributions for a specific goal. |
-| **GET** | `/notifications` | List the authenticated user's notification history. |
-| **PATCH**| `/notifications/:id/read` | Mark a specific notification as read. |
-| **POST** | `/notifications/trigger-reminders` | Manually run the daily reminder check (for testing purposes). |
+---
+
+## 3. End-to-End User Journey
+
+1. **Registration** — `POST /auth/register` with `fullName`, `email`, `phone`, `password`, `confirmPassword` → immediate JWT `accessToken`. *(Note: `isVerified` defaults to `true` and isn't enforced — no email-verification gate currently blocks access.)*
+
+2. **Financial Profile Setup** — `PUT /financial-profile` with income, expenses, existing savings.
+
+3. **Goal Creation** — `POST /goals` with `goalName`, `category`, `targetAmount`, `deadline`, `contributionFrequency` → engine immediately returns required contribution, progress %, health score, and status.
+
+4. **Making Contributions** — either manually via `POST /contributions`, or via Monnify checkout (`POST /payments/initiate` → user redirected → `POST /payments/verify`). An atomic transaction updates `currentAmount`, recalculates health, and marks the goal `ACHIEVED` if the target is met.
+
+5. **Monitoring & Recovery** — `GET /dashboard` for the aggregate view. If behind schedule, `GET /goals/calculation/recovery-plan/:goalId` returns three recovery options. `POST /goals/calculation/simulate` tests hypothetical scenarios.
+
+6. **Reminders & Security** — daily cron sends reminders (in-app + email) if none sent in the last 7 days and the user hasn't disabled them. 2FA can be enabled via `/auth/2fa/setup` → `/auth/2fa/enable`, after which future logins require a challenge code.
+
+7. **Account Deactivation** — `DELETE /users/me` with password → account soft-deactivated, email prefixed, all existing tokens immediately rejected.
+
+---
+
+## 4. Complete API Reference
+
+### Auth
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| POST | `/auth/register` | No | `fullName, email, phone, password, confirmPassword` | `{ user, accessToken }` |
+| POST | `/auth/login` | No | `email, password` | `{ user, accessToken }` or `{ mfaRequired: true, challengeToken }` |
+| GET | `/auth/me` | Yes | — | User profile |
+| POST | `/auth/forgot-password` | No | `email` | `{ message }` |
+| POST | `/auth/reset-password/:token` | No | `newPassword, confirmPassword` | `{ message }` |
+| PUT | `/auth/change-password` | Yes | `oldPassword, newPassword, confirmPassword` | `{ message }` |
+| POST | `/auth/2fa/setup` | Yes | — | `{ qrCodeDataUrl, manualEntryKey }` |
+| POST | `/auth/2fa/enable` | Yes | `code` | `{ message }` |
+| POST | `/auth/2fa/disable` | Yes | `password` | `{ message }` |
+| POST | `/auth/2fa/verify-login` | No | `challengeToken, code` | `{ user, accessToken }` |
+
+### Users
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| GET | `/users/health` | No | — | `{ status }` |
+| GET | `/users/me` | Yes | — | Safe user object |
+| PUT | `/users/me` | Yes | `fullName?, phone?` | Updated user |
+| GET | `/users/me/settings` | Yes | — | Settings object |
+| PUT | `/users/me/settings` | Yes | `pushEnabled?, emailEnabled?` | Updated settings |
+| POST | `/users/me/avatar` | Yes | `file` (multipart) | User with `avatarUrl` |
+| DELETE | `/users/me/avatar` | Yes | — | Updated user |
+| DELETE | `/users/me` | Yes | `password?` | `{ message }` |
+
+### Financial Profile
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| GET | `/financial-profile` | Yes | — | Profile object |
+| PUT | `/financial-profile` | Yes | `incomeAmount?, incomeFrequency?, fixedExpenses?, variableExpenses?, existingSavings?, existingCommitments?` | Updated profile |
+
+### Goals
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| POST | `/goals` | Yes | `goalName, category?, targetAmount, deadline, contributionFrequency, preferredContribution?, description?, priority?` | Computed goal plan |
+| GET | `/goals` | Yes | — | Array of goals |
+| GET | `/goals/:id` | Yes | — | Goal + contribution history |
+| PUT | `/goals/:id` | Yes | Same fields, all optional | Updated goal |
+| POST | `/goals/calculation/simulate` | Yes | `targetAmount, deadline, contributionFrequency, currentAmount?, preferredContribution?` | Simulated plan |
+| GET | `/goals/calculation/recovery-plan/:goalId` | Yes | — | `{ goalId, currentStatus, recoveryOptions }` |
+
+### Contributions
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| POST | `/contributions` | Yes | `goalId, amount, contributionDate, trackingType, externalReference?` | `{ contribution, goal, goalAchieved }` |
+| GET | `/contributions/goal/:goalId` | Yes | Query: `page?, limit?` | Paginated list |
+
+### Payments
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| POST | `/payments/initiate` | Yes | `goalId, amount?` | `{ checkoutUrl, transactionReference, goalId }` |
+| POST | `/payments/verify` | Yes | `transactionReference, goalId` | `{ success, verificationDetails, contribution, goal, goalAchieved }` |
+| POST | `/payments/demo` | Yes | `goalId, amount?` | Same shape as verify (mock mode) |
+| POST | `/payments/webhook` | No | Webhook payload | `{ received: true }` |
+
+### Notifications
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| GET | `/notifications` | Yes | Query: `page?, limit?, type?, unreadOnly?` | Paginated list |
+| GET | `/notifications/unread-count` | Yes | — | `{ unreadCount }` |
+| PATCH | `/notifications/:id/read` | Yes | — | Updated notification |
+| PATCH | `/notifications/read-all` | Yes | — | `{ updatedCount }` |
+| POST | `/notifications/trigger-reminders` | Yes | — | `{ usersEvaluated, remindersSent }` |
+
+### Analytics & Dashboard
+| Method | Path | Auth? | Body | Response |
+|---|---|---|---|---|
+| POST | `/analytics/track` | Yes | `eventName, properties?` | `{ tracked: true }` |
+| GET | `/dashboard` | Yes | — | Aggregate stats + health breakdown |
+
+---
+
+## 5. Known Gaps & Recommendations
+
+1. **⚠️ Mono removal was not requested.** The prior bank-accounts module (linking, listing, disconnecting real bank accounts) was deleted in this pass and replaced with Monnify checkout. If you still want the "Connected Bank — list/disconnect" settings feature, it needs to be rebuilt, or the removal needs to be reverted from git history.
+2. **Email verification isn't enforced.** `isVerified` defaults to `true` and nothing checks it — anyone can use the app immediately after registering with an unverified email.
+3. **Monnify webhook security is incomplete.** Currently relies on the verify-callback flow rather than validating Monnify's signature header on incoming webhooks — worth hardening before real money moves through it.
+4. **Live credentials needed for full functionality.** SendGrid, Cloudinary, and Monnify all need real keys in `.env` to work end-to-end; `MOCK_MONNIFY=true` allows offline demo testing in the meantime.
+5. **Route paths have shifted.** Contributions and goal-calculation endpoints moved since the last frontend-facing API doc was written — that doc and the Postman test collection both need updating to match Section 4 above.
+
+---
+
+## 6. Test Coverage Summary
+
+| Test File | Covers | Gaps |
+|---|---|---|
+| `test/goal-utils.test.ts` | `calculateRequiredContribution`, `buildGoalPlan` status transitions, `calculateGoalHealthScore`, `assessFeasibility`, frequency normalization | — |
+| `test/payments.test.ts` | `MonnifyClientService` checkout initiation, mock verification, reference/amount parsing | — |
+
+**Not covered:** end-to-end HTTP integration tests for controllers (currently manual/Postman-driven), `AuthService`, `ContributionsService`. Recommended as a next priority.
