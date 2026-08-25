@@ -1,21 +1,9 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Post,
-  Delete,
-  Body,
-  UseGuards,
-  UseInterceptors,
-  UploadedFile,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
-import { DeleteAccountDto } from './dto/delete-account.dto';
 
 @Controller('users')
 export class UsersController {
@@ -51,27 +39,5 @@ export class UsersController {
     @Body() updateSettingsDto: UpdateSettingsDto
   ) {
     return this.usersService.updateSettings(user.id, updateSettingsDto);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Post('me/avatar')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadAvatar(
-    @CurrentUser() user: any,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.usersService.uploadAvatar(user.id, file);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Delete('me/avatar')
-  async deleteAvatar(@CurrentUser() user: any) {
-    return this.usersService.deleteAvatar(user.id);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Delete('me')
-  async deleteAccount(@CurrentUser() user: any, @Body() dto: DeleteAccountDto) {
-    return this.usersService.deleteAccount(user.id, dto.password);
   }
 }

@@ -17,9 +17,7 @@ import { RegisterAuthDto } from './dto/register-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { AuthResult, SafeUser } from './auth.types';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { ChangePasswordDto } from './dto/change-password.dto';
-import * as otplib from 'otplib';
-import * as qrcode from 'qrcode';
+import { ChangePasswordDto } from './dto/change-password.dto'; // <-- Added Import
 
 const SALT_ROUNDS = 10;
 const RESET_TOKEN_EXPIRY_MINUTES = 15;
@@ -124,10 +122,8 @@ export class AuthService {
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  async login(dto: LoginAuthDto): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
+  async login(dto: LoginAuthDto): Promise<AuthResult> {
+    const user = await this.usersService.findByEmail(dto.email);
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -143,135 +139,6 @@ export class AuthService {
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
-    }
-
-    if (user.mfaEnabled) {
-      const challengeToken = this.jwtService.sign(
-        { sub: user.id, mfaPending: true },
-        { expiresIn: '5m' },
-      );
-      return {
-        mfaRequired: true,
-        challengeToken,
-      };
-    }
-
-    await this.usersService.markLastLogin(user.id);
-
-    const accessToken = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
-
-    return {
-      user: this.toSafeUser(user),
-      accessToken,
-    };
-  }
-
-  // ── 2FA Setup, Enable, Disable, Verify Login ────────────────────────────────
-
-  async setup2FA(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    const secret = otplib.generateSecret();
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaSecret: secret },
-    });
-
-    const otpauthUrl = otplib.generateURI({
-      secret,
-      label: user.email,
-      issuer: 'SafeNest',
-    });
-    const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
-
-    return {
-      qrCodeDataUrl,
-      manualEntryKey: secret,
-    };
-  }
-
-  async enable2FA(userId: string, code: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.mfaSecret) {
-      throw new BadRequestException('2FA setup must be initiated first');
-    }
-
-    const isValid = otplib.verify({
-      token: code,
-      secret: user.mfaSecret,
-    });
-
-    if (!isValid) {
-      throw new BadRequestException('Invalid authentication code');
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: true },
-    });
-
-    return { message: 'Two-factor authentication enabled successfully' };
-  }
-
-  async disable2FA(userId: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    if (!user.passwordHash) {
-      throw new BadRequestException('OAuth users cannot disable 2FA with a password');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new BadRequestException('Incorrect password');
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        mfaEnabled: false,
-        mfaSecret: null,
-      },
-    });
-
-    return { message: 'Two-factor authentication disabled successfully' };
-  }
-
-  async verifyLogin2FA(challengeToken: string, code: string): Promise<AuthResult> {
-    let payload: any;
-    try {
-      payload = this.jwtService.verify(challengeToken);
-    } catch {
-      throw new UnauthorizedException('Invalid or expired challenge token');
-    }
-
-    if (!payload?.mfaPending || !payload?.sub) {
-      throw new UnauthorizedException('Invalid challenge token payload');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-    });
-
-    if (!user || user.status !== 'ACTIVE' || !user.mfaSecret) {
-      throw new UnauthorizedException('Invalid login attempt');
-    }
-
-    const isValid = otplib.verify({
-      token: code,
-      secret: user.mfaSecret,
-    });
-
-    if (!isValid) {
-      throw new BadRequestException('Invalid authentication code');
     }
 
     await this.usersService.markLastLogin(user.id);
@@ -422,30 +289,28 @@ export class AuthService {
       );
     }
 
-    let existingUser = await this.usersService.findByEmail(email);
-    let userId: string;
+    let user: Awaited<ReturnType<UsersService['createOAuthUser']>> | null =
+      await this.usersService.findByEmail(email);
 
-    if (existingUser) {
-      if (existingUser.status !== 'ACTIVE') {
+    if (user) {
+      if (user.status !== 'ACTIVE') {
         throw new UnauthorizedException('Account is not active');
       }
 
-      await this.usersService.linkOAuthProvider(existingUser.id, provider, providerId);
-      userId = existingUser.id;
+      await this.usersService.linkOAuthProvider(user.id, provider, providerId);
     } else {
-      const newUser = await this.usersService.createOAuthUser({
+      user = await this.usersService.createOAuthUser({
         email,
         fullName,
         oauthProvider: provider,
         oauthProviderId: providerId,
       });
-      userId = newUser.id;
 
       void this.analyticsService.trackEvent('user_signed_up', {
         signing_method: provider === 'google' ? 'Google' : 'Facebook',
         user_role: 'user',
         timestamp: new Date().toISOString(),
-      }, newUser.id);
+      }, user.id);
 
       void this.sendWelcomeEmail(email, fullName).catch((err: unknown) =>
         this.logger.warn(
@@ -456,11 +321,11 @@ export class AuthService {
       );
     }
 
-    await this.usersService.markLastLogin(userId);
-    const user = await this.usersService.findById(userId);
     if (!user) {
       throw new InternalServerErrorException('Unable to complete OAuth login');
     }
+
+    await this.usersService.markLastLogin(user.id);
 
     const accessToken = this.jwtService.sign({
       sub: user.id,
